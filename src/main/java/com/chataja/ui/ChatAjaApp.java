@@ -4,6 +4,7 @@ import com.chataja.chatbot.ChatBot;
 import com.chataja.dao.UserDAO;
 import com.chataja.db.DatabaseManager;
 import com.chataja.model.User;
+import com.chataja.notifikasi.NotifikasiService;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -27,6 +28,7 @@ public class ChatAjaApp extends Application {
     private User currentUser = null;
     private final ChatBot chatBot = new ChatBot();
     private final UserDAO userDAO = new UserDAO();
+    private final NotifikasiService notifikasiService = new NotifikasiService();
 
     private BorderPane root;
     private VBox sidebar;
@@ -72,7 +74,10 @@ public class ChatAjaApp extends Application {
         DatabaseManager.initialize();
         buildUI(primaryStage);
         primaryStage.show();
-        Platform.runLater(this::showWelcomePopup);
+        Platform.runLater(() -> {
+            showWelcomePopup();
+            notifikasiService.cekDanTampilkanTanpaLogin();
+        });
     }
 
     @Override
@@ -301,6 +306,8 @@ public class ChatAjaApp extends Application {
                     currentUser = user;
                     chatBot.setLoggedUser(user);
                     updateAfterLogin(user);
+                    // Tampilkan notifikasi jadwal mendatang setelah login
+                    Platform.runLater(() -> notifikasiService.cekDanTampilkan(user));
                 } else {
                     showAlert(Alert.AlertType.ERROR, "Login Gagal",
                             "Username, password, atau tipe pengguna tidak sesuai.");

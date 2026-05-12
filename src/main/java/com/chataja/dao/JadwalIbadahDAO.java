@@ -56,6 +56,31 @@ public class JadwalIbadahDAO {
         return list;
     }
 
+    /**
+     * Ambil jadwal ibadah dalam rentang tanggal [dari, sampai] (inklusif).
+     * Digunakan oleh NotifikasiService untuk reminder mendatang.
+     */
+    public List<JadwalIbadah> getInRange(LocalDate dari, LocalDate sampai) {
+        List<JadwalIbadah> list = new ArrayList<>();
+        String sql = """
+            SELECT j.*, l.nama_tempat
+            FROM jadwal_ibadah j
+            LEFT JOIN lokasi_gereja l ON j.id_lokasi = l.id_lokasi
+            WHERE j.tanggal >= ? AND j.tanggal <= ?
+            ORDER BY j.tanggal, j.waktu
+        """;
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, dari.toString());
+            ps.setString(2, sampai.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(map(rs));
+        } catch (SQLException e) {
+            System.err.println("[JadwalIbadahDAO] getInRange error: " + e.getMessage());
+        }
+        return list;
+    }
+
     public boolean insert(JadwalIbadah j) {
         String sql = "INSERT INTO jadwal_ibadah (id_jadwal,nama_ibadah,tanggal,waktu,id_lokasi,id_user) VALUES (?,?,?,?,?,?)";
         try (Connection conn = DatabaseManager.getConnection();

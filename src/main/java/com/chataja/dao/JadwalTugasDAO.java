@@ -56,6 +56,32 @@ public class JadwalTugasDAO {
         return list;
     }
 
+    /**
+     * Ambil jadwal tugas seorang majelis dalam rentang tanggal [dari, sampai] (inklusif).
+     * Digunakan oleh NotifikasiService untuk reminder tugas mendatang.
+     */
+    public List<JadwalTugas> getByUserInRange(String idUser, LocalDate dari, LocalDate sampai) {
+        List<JadwalTugas> list = new ArrayList<>();
+        String sql = """
+            SELECT jt.*, u.nama as nama_majelis
+            FROM jadwal_tugas jt
+            LEFT JOIN users u ON jt.id_user = u.id_user
+            WHERE jt.id_user = ? AND jt.tanggal >= ? AND jt.tanggal <= ?
+            ORDER BY jt.tanggal
+        """;
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, idUser);
+            ps.setString(2, dari.toString());
+            ps.setString(3, sampai.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(map(rs));
+        } catch (SQLException e) {
+            System.err.println("[JadwalTugasDAO] getByUserInRange error: " + e.getMessage());
+        }
+        return list;
+    }
+
     public boolean insert(JadwalTugas jt) {
         String sql = "INSERT INTO jadwal_tugas (id_tugas,tanggal,tugas,id_user,waktu_ibadah) VALUES (?,?,?,?,?)";
         try (Connection conn = DatabaseManager.getConnection();
