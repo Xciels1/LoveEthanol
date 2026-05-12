@@ -1,0 +1,303 @@
+package com.chataja.ui;
+
+import com.chataja.chatbot.ChatBot;
+import javafx.animation.FadeTransition;
+import javafx.animation.TranslateTransition;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.*;
+import javafx.util.Duration;
+
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+
+/**
+ * Panel antarmuka chatbot utama.
+ * Desain: dark theme sesuai Figma.
+ */
+public class ChatView extends VBox {
+
+    private final ChatBot chatBot;
+    private VBox messageContainer;
+    private ScrollPane scrollPane;
+    private TextField inputField;
+    private Button sendBtn;
+
+    private static final String BG        = "#3B3B3B";
+    private static final String CARD      = "#484848";
+    private static final String INPUT_BG  = "#5C5C5C";
+    private static final String ACCENT    = "#5B8DEF";
+    private static final String USER_BG   = "#5B8DEF";
+    private static final String BOT_BG    = "#4A4A4A";
+
+    public ChatView(ChatBot chatBot) {
+        this.chatBot = chatBot;
+        buildUI();
+        addWelcomeMessage();
+    }
+
+    private void buildUI() {
+        setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(this, Priority.ALWAYS);
+
+        // ── Header ──────────────────────────────────────────────────────
+        HBox header = buildPageHeader("Chat bot - jemaat");
+
+        // ── Message container ────────────────────────────────────────────
+        messageContainer = new VBox(14);
+        messageContainer.setPadding(new Insets(20, 24, 20, 24));
+
+        scrollPane = new ScrollPane(messageContainer);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; " +
+                            "-fx-border-width: 0;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        messageContainer.heightProperty().addListener((obs, old, nv) ->
+                scrollPane.setVvalue(1.0));
+
+        // ── Input area ───────────────────────────────────────────────────
+        HBox inputArea = new HBox(10);
+        inputArea.setPadding(new Insets(12, 20, 14, 20));
+        inputArea.setAlignment(Pos.CENTER);
+        inputArea.setStyle("-fx-background-color: " + BG + ";");
+
+        // Menu button
+        Button btnMenu = new Button("☰  Menu");
+        btnMenu.setFont(Font.font("System", FontWeight.BOLD, 12));
+        btnMenu.setPadding(new Insets(10, 14, 10, 14));
+        btnMenu.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 20; -fx-cursor: hand; -fx-border-width: 0;");
+        btnMenu.setOnAction(e -> showQuickMenu());
+
+        // Input wrapper
+        HBox inputWrapper = new HBox(0);
+        inputWrapper.setAlignment(Pos.CENTER);
+        inputWrapper.setStyle("-fx-background-color: " + INPUT_BG + "; " +
+                "-fx-background-radius: 20; -fx-border-width: 0;");
+        HBox.setHgrow(inputWrapper, Priority.ALWAYS);
+
+        inputField = new TextField();
+        inputField.setPromptText("Ajukan pertanyaan");
+        inputField.setStyle("-fx-background-color: transparent; -fx-border-width: 0; " +
+                "-fx-padding: 10 14 10 16; -fx-font-size: 13; -fx-text-fill: white; " +
+                "-fx-prompt-text-fill: rgba(255,255,255,0.45);");
+        inputField.setOnAction(e -> sendMessage(inputField.getText()));
+        HBox.setHgrow(inputField, Priority.ALWAYS);
+        inputWrapper.getChildren().add(inputField);
+
+        sendBtn = new Button("➤");
+        sendBtn.setFont(Font.font("System", FontWeight.BOLD, 15));
+        sendBtn.setPrefSize(42, 42);
+        sendBtn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;");
+        sendBtn.setOnMouseEntered(e -> sendBtn.setStyle(
+                "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
+                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;"));
+        sendBtn.setOnMouseExited(e -> sendBtn.setStyle(
+                "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;"));
+        sendBtn.setOnAction(e -> sendMessage(inputField.getText()));
+
+        inputArea.getChildren().addAll(btnMenu, inputWrapper, sendBtn);
+
+        getChildren().addAll(header, scrollPane, inputArea);
+    }
+
+    /** Page header with logo + title, dark rounded bar */
+    static HBox buildPageHeader(String title) {
+        HBox header = new HBox(14);
+        header.setPadding(new Insets(12, 20, 12, 20));
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setStyle("-fx-background-color: #424242; -fx-background-radius: 10;");
+        header.setMaxWidth(Double.MAX_VALUE);
+
+        // Logo icon dari file gambar
+        ImageView logoIcon = new ImageView();
+        try {
+            Image img = new Image(ChatView.class.getResourceAsStream("/logo.png"));
+            logoIcon.setImage(img);
+            logoIcon.setFitWidth(44);
+            logoIcon.setFitHeight(44);
+            logoIcon.setPreserveRatio(true);
+            logoIcon.setSmooth(true);
+        } catch (Exception ignored) {}
+
+        // Title centered
+        Region leftSpacer = new Region();
+        HBox.setHgrow(leftSpacer, Priority.ALWAYS);
+
+        Text titleText = new Text(title);
+        titleText.setFill(Color.WHITE);
+        titleText.setFont(Font.font("System", FontWeight.BOLD, 18));
+
+        Region rightSpacer = new Region();
+        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+
+        header.getChildren().addAll(logoIcon, leftSpacer, titleText, rightSpacer);
+        return header;
+    }
+
+    // ── Messaging ────────────────────────────────────────────────────────
+
+    private void sendMessage(String text) {
+        if (text == null || text.trim().isEmpty()) return;
+        String trimmed = text.trim();
+        addUserMessage(trimmed);
+        inputField.clear();
+
+        HBox typingIndicator = buildTypingIndicator();
+        messageContainer.getChildren().add(typingIndicator);
+
+        javafx.animation.PauseTransition delay =
+                new javafx.animation.PauseTransition(Duration.millis(700));
+        delay.setOnFinished(e -> {
+            messageContainer.getChildren().remove(typingIndicator);
+            String response = chatBot.prosesPertanyaan(trimmed);
+            addBotMessage(response);
+        });
+        delay.play();
+    }
+
+    private void showQuickMenu() {
+        ContextMenu menu = new ContextMenu();
+//      String[] items = {"Jadwal ibadah", "Lokasi gereja", "Renungan hari ini", "Pengumuman gereja"};
+        String[] items = {
+                "Jadwal ibadah",
+                "Lokasi gereja",
+                "Renungan hari ini",
+                "Ayat Alkitab acak",
+                "Ayat alkitab tentang kekuatan",
+                "Bantuan"
+        };
+        for (String item : items) {
+            MenuItem mi = new MenuItem(item);
+            mi.setOnAction(e -> sendMessage(item));
+            menu.getItems().add(mi);
+        }
+        menu.show(inputField.getScene().getWindow(),
+                inputField.localToScreen(0, 0).getX(),
+                inputField.localToScreen(0, 0).getY() - 130);
+    }
+
+    public void addUserMessage(String text) {
+        HBox wrapper = new HBox();
+        wrapper.setAlignment(Pos.CENTER_RIGHT);
+        wrapper.setPadding(new Insets(0, 0, 0, 80));
+
+        Label lbl = new Label(text);
+        lbl.setWrapText(true);
+        lbl.setFont(Font.font("System", 13));
+        lbl.setTextFill(Color.WHITE);
+        lbl.setStyle("-fx-background-color: " + USER_BG + "; " +
+                "-fx-background-radius: 18 18 4 18; -fx-padding: 10 16 10 16;");
+        lbl.setMaxWidth(460);
+
+        DropShadow shadow = new DropShadow();
+        shadow.setColor(Color.color(0.36, 0.55, 0.94, 0.3));
+        shadow.setRadius(8); shadow.setOffsetY(2);
+        lbl.setEffect(shadow);
+
+        VBox bubble = new VBox(4, lbl);
+        Label ts = new Label(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
+        ts.setFont(Font.font("System", 10));
+        ts.setTextFill(Color.web("#AAAAAA"));
+        HBox tsRow = new HBox(ts);
+        tsRow.setAlignment(Pos.CENTER_RIGHT);
+        bubble.getChildren().add(tsRow);
+
+        wrapper.getChildren().add(bubble);
+        animateIn(wrapper, true);
+        messageContainer.getChildren().add(wrapper);
+    }
+
+    public void addBotMessage(String text) {
+        HBox wrapper = new HBox(12);
+        wrapper.setAlignment(Pos.TOP_LEFT);
+        wrapper.setPadding(new Insets(0, 80, 0, 0));
+
+        Label lbl = new Label(text);
+        lbl.setWrapText(true);
+        lbl.setFont(Font.font("System", 13));
+        lbl.setTextFill(Color.WHITE);
+        lbl.setStyle("-fx-background-color: " + BOT_BG + "; " +
+                "-fx-background-radius: 4 18 18 18; -fx-padding: 10 16 10 16;");
+        lbl.setMaxWidth(500);
+
+        DropShadow shadow = new DropShadow();
+        shadow.setColor(Color.color(0, 0, 0, 0.2));
+        shadow.setRadius(8); shadow.setOffsetY(2);
+        lbl.setEffect(shadow);
+
+        VBox bubble = new VBox(4, lbl);
+        Label ts = new Label("ChatAja  " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
+        ts.setFont(Font.font("System", 10));
+        ts.setTextFill(Color.web("#AAAAAA"));
+        bubble.getChildren().add(ts);
+
+        wrapper.getChildren().add(bubble);
+        animateIn(wrapper, false);
+        messageContainer.getChildren().add(wrapper);
+    }
+
+    private void animateIn(HBox node, boolean fromRight) {
+        node.setOpacity(0);
+        FadeTransition fade = new FadeTransition(Duration.millis(250), node);
+        fade.setFromValue(0); fade.setToValue(1);
+        TranslateTransition slide = new TranslateTransition(Duration.millis(200), node);
+        slide.setFromX(fromRight ? 20 : -20); slide.setToX(0);
+        fade.play(); slide.play();
+    }
+
+    private HBox buildTypingIndicator() {
+        HBox wrapper = new HBox(12);
+        wrapper.setAlignment(Pos.TOP_LEFT);
+        Label typing = new Label("● ● ●");
+        typing.setFont(Font.font("System", FontPosture.ITALIC, 13));
+        typing.setTextFill(Color.web("#AAAAAA"));
+        typing.setStyle("-fx-background-color: " + BOT_BG + "; -fx-background-radius: 4 18 18 18; " +
+                "-fx-padding: 10 16 10 16;");
+        FadeTransition pulse = new FadeTransition(Duration.millis(600), typing);
+        pulse.setFromValue(0.4); pulse.setToValue(1.0);
+        pulse.setCycleCount(FadeTransition.INDEFINITE); pulse.setAutoReverse(true);
+        pulse.play();
+        wrapper.getChildren().add(typing);
+        return wrapper;
+    }
+
+//    private void addWelcomeMessage() {
+//        addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
+//                "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
+//                "• \"Jadwal ibadah\"\n" +
+//                "• \"Lokasi gereja\"\n" +
+//                "• \"Renungan hari ini\"\n" +
+//                "• \"Pengumuman gereja\"\n\n" +
+//                "Ketik \"bantuan\" untuk melihat semua fitur yang tersedia.");
+//    }
+    private void addWelcomeMessage() {
+    addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
+            "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
+            "• \"Jadwal ibadah\"\n" +
+            "• \"Lokasi gereja\"\n" +
+            "• \"Renungan hari ini\"\n" +
+            "• \"Pengumuman gereja\"\n" +
+            "• \"Yohanes 3:16\" → langsung cari ayat Alkitab\n" +
+            "• \"Ayat tentang kasih / iman / kekuatan\"\n\n" +
+            "Ketik \"bantuan\" untuk melihat semua fitur. 😊");
+    }
+
+    public void clearChat() {
+        messageContainer.getChildren().clear();
+        addWelcomeMessage();
+    }
+}
