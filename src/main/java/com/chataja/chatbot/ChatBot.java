@@ -37,6 +37,15 @@ public class ChatBot {
     public User getLoggedUser()          { return loggedUser; }
     public String getNamaBot()           { return namaBot; }
 
+    // Method untuk mendapatkan data dengan gambar
+    public Renungan getRenunganHariIni() {
+        return renunganDAO.getHariIni();
+    }
+
+    public List<Pengumuman> getLatestPengumuman(int limit) {
+        return pengumumanDAO.getLatest(limit);
+    }
+
     // ────────────────────────────────────────────────────────────────────
     //  PUBLIC INTERFACE
     // ────────────────────────────────────────────────────────────────────

@@ -2,13 +2,11 @@ package com.chataja.ui;
 
 import com.chataja.dao.*;
 import com.chataja.model.*;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -21,33 +19,32 @@ import java.util.List;
 
 /**
  * Panel manajemen data untuk Admin.
- * UC-3: Kelola Jadwal Ibadah (CRUD)
- * UC-3: Kelola Jadwal Tugas (CRUD)
+ * Desain: dark theme sesuai Figma – layout section dengan kartu.
  */
 public class AdminView extends VBox {
 
     private User currentUser;
     private final JadwalIbadahDAO jadwalIbadahDAO = new JadwalIbadahDAO();
-    private final JadwalTugasDAO jadwalTugasDAO = new JadwalTugasDAO();
-    private final LokasiDAO lokasiDAO = new LokasiDAO();
-    private final UserDAO userDAO = new UserDAO();
+    private final JadwalTugasDAO  jadwalTugasDAO  = new JadwalTugasDAO();
+    private final LokasiDAO       lokasiDAO       = new LokasiDAO();
+    private final UserDAO         userDAO         = new UserDAO();
 
-    private TabPane tabPane;
-    private Tab tabJadwalIbadah;
-    private Tab tabJadwalTugas;
-    private Tab tabLokasi;
+    // Two separate panes, switched by nav
+    private VBox paneIbadah;
+    private VBox paneTugas;
+    private StackPane contentStack;
 
-    // ── Jadwal Ibadah ──
-    private TableView<JadwalIbadah> tableJadwal;
-    private ObservableList<JadwalIbadah> jadwalData;
+    // Lists displayed in panes
+    private VBox listIbadahBox;
+    private VBox listTugasBox;
 
-    // ── Jadwal Tugas ──
-    private TableView<JadwalTugas> tableTugas;
-    private ObservableList<JadwalTugas> tugasData;
-
-    // ── Lokasi ──
-    private TableView<Lokasi> tableLokasi;
-    private ObservableList<Lokasi> lokasiData;
+    // Colors
+    private static final String BG      = "#3B3B3B";
+    private static final String CARD    = "#484848";
+    private static final String INPUT   = "#5C5C5C";
+    private static final String ACCENT  = "#5B8DEF";
+    private static final String DANGER  = "#E74C3C";
+    private static final String DIVIDER = "#666666";
 
     public AdminView(User user) {
         this.currentUser = user;
@@ -56,572 +53,584 @@ public class AdminView extends VBox {
         setManaged(false);
     }
 
-    public void setUser(User user) {
-        this.currentUser = user;
-    }
+    public void setUser(User user) { this.currentUser = user; }
 
     public void showJadwalIbadah() {
-        if (tabPane != null) tabPane.getSelectionModel().select(tabJadwalIbadah);
+        paneIbadah.setVisible(true);  paneIbadah.setManaged(true);
+        paneTugas.setVisible(false);  paneTugas.setManaged(false);
     }
 
     public void showJadwalTugas() {
-        if (tabPane != null) tabPane.getSelectionModel().select(tabJadwalTugas);
+        paneTugas.setVisible(true);   paneTugas.setManaged(true);
+        paneIbadah.setVisible(false); paneIbadah.setManaged(false);
     }
 
     public void refresh() {
-        loadJadwalIbadah();
-        loadJadwalTugas();
-        loadLokasi();
+        refreshListIbadah();
+        refreshListTugas();
     }
 
     private void buildUI() {
-        setStyle("-fx-background-color: #F0F4FF;");
+        setStyle("-fx-background-color: " + BG + ";");
         VBox.setVgrow(this, Priority.ALWAYS);
 
-        // ── Header ──────────────────────────────────────────────────────
-        HBox header = new HBox(14);
-        header.setPadding(new Insets(18, 24, 18, 24));
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-width: 0 0 1 0;");
+        contentStack = new StackPane();
+        VBox.setVgrow(contentStack, Priority.ALWAYS);
 
-        javafx.scene.shape.Circle iconCircle = new javafx.scene.shape.Circle(20);
-        iconCircle.setFill(Color.web("#5B8DEF"));
-        javafx.scene.layout.StackPane iconBox = new javafx.scene.layout.StackPane(iconCircle);
-        Text iconText = new Text("⚙");
-        iconText.setFill(Color.WHITE);
-        iconText.setFont(Font.font("System", FontWeight.BOLD, 14));
-        iconBox.getChildren().add(iconText);
+        paneIbadah = buildJadwalIbadahPane();
+        paneTugas  = buildJadwalTugasPane();
 
-        VBox htxt = new VBox(3);
-        Text htitle = new Text("Panel Admin");
-        htitle.setFont(Font.font("System", FontWeight.BOLD, 16));
-        htitle.setFill(Color.web("#1A1F36"));
-        Text hsub = new Text("Kelola data jadwal ibadah, jadwal tugas, dan lokasi gereja");
-        hsub.setFont(Font.font("System", 12));
-        hsub.setFill(Color.web("#8892B0"));
-        htxt.getChildren().addAll(htitle, hsub);
-        header.getChildren().addAll(iconBox, htxt);
+        // Start with ibadah visible
+        paneTugas.setVisible(false); paneTugas.setManaged(false);
 
-        // ── TabPane ──────────────────────────────────────────────────────
-        tabPane = new TabPane();
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setStyle("-fx-background-color: #F0F4FF;");
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        contentStack.getChildren().addAll(paneIbadah, paneTugas);
+        getChildren().add(contentStack);
 
-        tabJadwalIbadah = new Tab("📅  Jadwal Ibadah", buildJadwalIbadahTab());
-        tabJadwalTugas  = new Tab("📋  Jadwal Tugas",  buildJadwalTugasTab());
-        tabLokasi       = new Tab("📍  Lokasi Gereja", buildLokasiTab());
-
-        tabPane.getTabs().addAll(tabJadwalIbadah, tabJadwalTugas, tabLokasi);
-        tabPane.getSelectionModel().selectedItemProperty().addListener(
-                (obs, old, nv) -> refresh());
-
-        getChildren().addAll(header, tabPane);
-        loadJadwalIbadah();
-        loadJadwalTugas();
-        loadLokasi();
+        refreshListIbadah();
+        refreshListTugas();
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  TAB: JADWAL IBADAH
+    //  PANE: JADWAL IBADAH
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private VBox buildJadwalIbadahTab() {
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(18));
-        box.setStyle("-fx-background-color: #F0F4FF;");
+    private VBox buildJadwalIbadahPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
 
-        // ── Form tambah/edit ──
-        TitledPane formPane = new TitledPane("Tambah / Edit Jadwal Ibadah", buildJadwalForm());
-        formPane.setCollapsible(true);
-        formPane.setExpanded(false);
-        formPane.setStyle("-fx-font-weight: bold;");
+        // Header
+        HBox header = ChatView.buildPageHeader("Kelola Jadwal Ibadah");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
-        // ── Table ──
-        tableJadwal = new TableView<>();
-        tableJadwal.setStyle("-fx-background-radius: 8; -fx-border-radius: 8;");
-        jadwalData = FXCollections.observableArrayList();
-        tableJadwal.setItems(jadwalData);
-        VBox.setVgrow(tableJadwal, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        TableColumn<JadwalIbadah, String> colNama = new TableColumn<>("Nama Ibadah");
-        colNama.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getNamaIbadah()));
-        colNama.setPrefWidth(200);
+        VBox scrollContent = new VBox(16);
+        scrollContent.setPadding(new Insets(16, 16, 16, 16));
+        scrollContent.setStyle("-fx-background-color: " + BG + ";");
 
-        TableColumn<JadwalIbadah, String> colTgl = new TableColumn<>("Tanggal");
-        colTgl.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTanggalStr()));
-        colTgl.setPrefWidth(110);
+        // ── Tambah form ──
+        scrollContent.getChildren().add(sectionTitle("Tambah Jadwal Ibadah"));
 
-        TableColumn<JadwalIbadah, String> colWkt = new TableColumn<>("Waktu");
-        colWkt.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getWaktuStr()));
-        colWkt.setPrefWidth(100);
+        VBox formCard = buildIbadahFormCard();
+        scrollContent.getChildren().add(formCard);
 
-        TableColumn<JadwalIbadah, String> colLok = new TableColumn<>("Lokasi");
-        colLok.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().getNamaLokasi() != null ? c.getValue().getNamaLokasi() : "-"));
-        colLok.setPrefWidth(160);
+        // ── Daftar ──
+        scrollContent.getChildren().add(sectionTitle("Daftar Ibadah"));
 
-        TableColumn<JadwalIbadah, Void> colAksi = buildActionColumn(
-                "Jadwal Ibadah",
-                item -> editJadwalIbadah((JadwalIbadah) item),
-                item -> { jadwalIbadahDAO.delete(((JadwalIbadah)item).getIdJadwal()); loadJadwalIbadah(); });
+        listIbadahBox = new VBox(8);
+        listIbadahBox.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
+        scrollContent.getChildren().add(listIbadahBox);
 
-        tableJadwal.getColumns().addAll(colNama, colTgl, colWkt, colLok, colAksi);
-
-        // ── Add button ──
-        Button btnAdd = primaryButton("+ Tambah Jadwal Ibadah");
-        btnAdd.setOnAction(e -> formPane.setExpanded(!formPane.isExpanded()));
-
-        box.getChildren().addAll(btnAdd, formPane, tableJadwal);
-        return box;
+        scroll.setContent(scrollContent);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
     }
 
-    private VBox buildJadwalForm() {
-        // Fields
-        TextField fNama   = new TextField(); fNama.setPromptText("Nama Ibadah*");
-        DatePicker fTgl   = new DatePicker(LocalDate.now());
-        TextField fWaktu  = new TextField("07:00"); fWaktu.setPromptText("HH:MM*");
-        ComboBox<String> fLokasi = new ComboBox<>();
-        fLokasi.setPromptText("Pilih Lokasi*");
-        fLokasi.setMaxWidth(Double.MAX_VALUE);
-        refreshLokasiCombo(fLokasi);
+    private VBox buildIbadahFormCard() {
+        TextField fNama  = styledField("Nama Ibadah");
+        TextField fLokasi = styledField("Lokasi Ibadah");
+        TextField fHari  = styledSmallField("DD");
+        TextField fBulan = styledSmallField("DD");
+        TextField fTahun = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+        TextField fJam   = styledSmallField("00");
+        TextField fMenit = styledSmallField("00");
 
-        GridPane grid = formGrid();
-        grid.add(label("Nama Ibadah*"), 0, 0);    grid.add(fNama, 1, 0);
-        grid.add(label("Tanggal*"), 0, 1);         grid.add(fTgl, 1, 1);
-        grid.add(label("Waktu (HH:MM)*"), 0, 2);  grid.add(fWaktu, 1, 2);
-        grid.add(label("Lokasi*"), 0, 3);          grid.add(fLokasi, 1, 3);
+        // Pre-fill date
+        LocalDate today = LocalDate.now();
+        fHari.setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+        fJam.setText("07"); fMenit.setText("00");
 
-        // Highlight empty required field
-        Button btnSimpan = primaryButton("💾 Simpan Jadwal");
+        // Layout
+        Label lblTgl = cardLabel("Tanggal Ibadah");
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label lblWkt = cardLabel("Waktu Ibadah");
+        HBox wktRow = new HBox(6, fJam, new Label(":") {{
+            setTextFill(Color.WHITE); setFont(Font.font("System", FontWeight.BOLD, 14));
+        }}, fMenit, new Label("WIB") {{
+            setTextFill(Color.WHITE);
+        }});
+        wktRow.setAlignment(Pos.CENTER_LEFT);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(180);
+        grid.getColumnConstraints().addAll(c0, c1);
+
+        grid.add(cardLabel("Nama Ibadah"), 0, 0);
+        grid.add(fNama, 0, 1);
+        grid.add(lblTgl, 1, 0);
+        grid.add(tglRow, 1, 1);
+        grid.add(cardLabel("Lokasi Ibadah"), 0, 2);
+        grid.add(fLokasi, 0, 3);
+        grid.add(lblWkt, 1, 2);
+        grid.add(wktRow, 1, 3);
+
+        Button btnTambah = primaryButton("Tambahkan  Jadwal");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(6, 0, 0, 0));
+
         Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
 
-        btnSimpan.setOnAction(e -> {
-            boolean valid = validateNotEmpty(lblStatus,
-                    fNama.getText(), fWaktu.getText());
-            if (fLokasi.getValue() == null) {
-                lblStatus.setText("⚠️ Pilih lokasi terlebih dahulu.");
-                lblStatus.setTextFill(Color.RED);
-                valid = false;
-            }
-            if (!valid) return;
-
+        btnTambah.setOnAction(e -> {
             try {
-                LocalTime wkt = LocalTime.parse(fWaktu.getText().trim());
+                String nama   = fNama.getText().trim();
+                String lokasi = fLokasi.getText().trim();
+                if (nama.isEmpty()) { lblStatus.setText("⚠ Nama ibadah wajib diisi."); return; }
+
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                LocalTime wkt = LocalTime.of(
+                        Integer.parseInt(fJam.getText().trim()),
+                        Integer.parseInt(fMenit.getText().trim()));
+
+                // Cari atau buat lokasi
+                String idLokasi = findOrCreateLokasi(lokasi);
+
                 JadwalIbadah j = new JadwalIbadah();
-                j.setNamaIbadah(fNama.getText().trim());
-                j.setTanggal(fTgl.getValue());
+                j.setNamaIbadah(nama);
+                j.setTanggal(tgl);
                 j.setWaktu(wkt);
-                j.setIdLokasi(fLokasi.getValue().split("\\|")[0].trim());
+                j.setIdLokasi(idLokasi);
                 j.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
 
                 if (jadwalIbadahDAO.insert(j)) {
                     lblStatus.setText("✅ Jadwal berhasil disimpan!");
-                    lblStatus.setTextFill(Color.GREEN);
-                    fNama.clear(); fWaktu.setText("07:00"); fTgl.setValue(LocalDate.now());
-                    fLokasi.setValue(null);
-                    loadJadwalIbadah();
+                    fNama.clear(); fLokasi.clear();
+                    refreshListIbadah();
                 }
             } catch (Exception ex) {
-                lblStatus.setText("⚠️ Format waktu tidak valid (HH:MM).");
-                lblStatus.setTextFill(Color.RED);
+                lblStatus.setText("⚠ Periksa kembali isian tanggal dan waktu.");
             }
         });
 
-        VBox form = new VBox(10, grid, btnSimpan, lblStatus);
-        form.setPadding(new Insets(12));
-        return form;
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10;");
+        return card;
     }
 
-    private void editJadwalIbadah(JadwalIbadah item) {
+    private void refreshListIbadah() {
+        if (listIbadahBox == null) return;
+        listIbadahBox.getChildren().clear();
+        List<JadwalIbadah> list = jadwalIbadahDAO.getAll();
+        if (list.isEmpty()) {
+            Label empty = new Label("Belum ada data jadwal ibadah.");
+            empty.setTextFill(Color.web("#AAAAAA"));
+            listIbadahBox.getChildren().add(empty);
+            return;
+        }
+        for (JadwalIbadah item : list) {
+            listIbadahBox.getChildren().add(buildIbadahRow(item));
+        }
+    }
+
+    private HBox buildIbadahRow(JadwalIbadah item) {
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10, 14, 10, 14));
+        row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
+
+        Label lNama = rowLabel(item.getNamaIbadah(), true);
+        HBox.setHgrow(lNama, Priority.ALWAYS);
+
+        Label lLokasi = rowLabel(item.getNamaLokasi() != null ? item.getNamaLokasi() : "-", false);
+        lLokasi.setPrefWidth(160);
+
+        Label lWkt  = rowLabel(item.getWaktuStr(), false);  lWkt.setPrefWidth(90);
+        Label lTgl  = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(100);
+
+        Button btnEdit  = actionBtn("✎ Edit", ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditIbadahDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) {
+                jadwalIbadahDAO.delete(item.getIdJadwal());
+                refreshListIbadah();
+            }
+        });
+
+        row.getChildren().addAll(
+                lNama, divider(), lLokasi, divider(), lWkt, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus
+        );
+        return row;
+    }
+
+    private void showEditIbadahDialog(JadwalIbadah item) {
         Dialog<JadwalIbadah> dlg = new Dialog<>();
         dlg.setTitle("Edit Jadwal Ibadah");
-
         TextField fNama   = new TextField(item.getNamaIbadah());
         DatePicker fTgl   = new DatePicker(item.getTanggal());
-        TextField fWaktu  = new TextField(item.getWaktu() != null ? item.getWaktu().toString().substring(0,5) : "");
+        TextField fWaktu  = new TextField(item.getWaktu() != null
+                ? item.getWaktu().toString().substring(0, 5) : "");
         ComboBox<String> fLokasi = new ComboBox<>();
         refreshLokasiCombo(fLokasi);
-        if (item.getNamaLokasi() != null) fLokasi.setValue(item.getIdLokasi() + " | " + item.getNamaLokasi());
+        if (item.getNamaLokasi() != null)
+            fLokasi.setValue(item.getIdLokasi() + " | " + item.getNamaLokasi());
 
-        GridPane grid = formGrid();
-        grid.add(label("Nama Ibadah*"), 0, 0);    grid.add(fNama, 1, 0);
-        grid.add(label("Tanggal*"), 0, 1);         grid.add(fTgl, 1, 1);
-        grid.add(label("Waktu (HH:MM)*"), 0, 2);  grid.add(fWaktu, 1, 2);
-        grid.add(label("Lokasi*"), 0, 3);          grid.add(fLokasi, 1, 3);
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Nama Ibadah"), 0, 0);  grid.add(fNama, 1, 0);
+        grid.add(dlgLabel("Tanggal"), 0, 1);       grid.add(fTgl, 1, 1);
+        grid.add(dlgLabel("Waktu (HH:MM)"), 0, 2); grid.add(fWaktu, 1, 2);
+        grid.add(dlgLabel("Lokasi"), 0, 3);         grid.add(fLokasi, 1, 3);
 
         dlg.getDialogPane().setContent(grid);
-        dlg.getDialogPane().setPrefWidth(400);
+        dlg.getDialogPane().setPrefWidth(420);
         ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
         dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
         dlg.setResultConverter(b -> {
             if (b == ok) {
-                try {
-                    item.setNamaIbadah(fNama.getText().trim());
-                    item.setTanggal(fTgl.getValue());
-                    item.setWaktu(LocalTime.parse(fWaktu.getText().trim()));
-                    if (fLokasi.getValue() != null)
-                        item.setIdLokasi(fLokasi.getValue().split("\\|")[0].trim());
-                } catch (Exception ignored) {}
+                item.setNamaIbadah(fNama.getText().trim());
+                item.setTanggal(fTgl.getValue());
+                try { item.setWaktu(LocalTime.parse(fWaktu.getText().trim())); } catch (Exception ignored) {}
+                if (fLokasi.getValue() != null) item.setIdLokasi(fLokasi.getValue().split("\\|")[0].trim());
                 return item;
             }
             return null;
         });
-        dlg.showAndWait().ifPresent(j -> { jadwalIbadahDAO.update(j); loadJadwalIbadah(); });
-    }
-
-    private void loadJadwalIbadah() {
-        if (jadwalData == null) return;
-        jadwalData.setAll(jadwalIbadahDAO.getAll());
+        dlg.showAndWait().ifPresent(j -> { jadwalIbadahDAO.update(j); refreshListIbadah(); });
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  TAB: JADWAL TUGAS
+    //  PANE: JADWAL TUGAS
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private VBox buildJadwalTugasTab() {
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(18));
-        box.setStyle("-fx-background-color: #F0F4FF;");
+    private VBox buildJadwalTugasPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
 
-        TitledPane formPane = new TitledPane("Tambah / Edit Jadwal Tugas", buildTugasForm());
-        formPane.setCollapsible(true);
-        formPane.setExpanded(false);
+        HBox header = ChatView.buildPageHeader("Kelola Jadwal Tugas");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
-        tableTugas = new TableView<>();
-        tugasData = FXCollections.observableArrayList();
-        tableTugas.setItems(tugasData);
-        VBox.setVgrow(tableTugas, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        TableColumn<JadwalTugas, String> colMajelis = new TableColumn<>("Majelis");
-        colMajelis.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().getNamaMajelis() != null ? c.getValue().getNamaMajelis() : c.getValue().getIdUser()));
-        colMajelis.setPrefWidth(160);
+        VBox scrollContent = new VBox(16);
+        scrollContent.setPadding(new Insets(16, 16, 16, 16));
+        scrollContent.setStyle("-fx-background-color: " + BG + ";");
 
-        TableColumn<JadwalTugas, String> colTugas = new TableColumn<>("Tugas");
-        colTugas.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTugas()));
-        colTugas.setPrefWidth(200);
+        scrollContent.getChildren().add(sectionTitle("Tambah Tugas"));
+        scrollContent.getChildren().add(buildTugasFormCard());
+        scrollContent.getChildren().add(sectionTitle("Daftar Tugas"));
 
-        TableColumn<JadwalTugas, String> colTgl = new TableColumn<>("Tanggal");
-        colTgl.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTanggalStr()));
-        colTgl.setPrefWidth(110);
+        listTugasBox = new VBox(8);
+        listTugasBox.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
+        scrollContent.getChildren().add(listTugasBox);
 
-        TableColumn<JadwalTugas, String> colWkt = new TableColumn<>("Waktu");
-        colWkt.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getWaktuStr()));
-        colWkt.setPrefWidth(100);
-
-        TableColumn<JadwalTugas, Void> colAksi = buildActionColumn(
-                "Jadwal Tugas",
-                item -> editJadwalTugas((JadwalTugas) item),
-                item -> { jadwalTugasDAO.delete(((JadwalTugas)item).getIdTugas()); loadJadwalTugas(); });
-
-        tableTugas.getColumns().addAll(colMajelis, colTugas, colTgl, colWkt, colAksi);
-
-        Button btnAdd = primaryButton("+ Tambah Jadwal Tugas");
-        btnAdd.setOnAction(e -> formPane.setExpanded(!formPane.isExpanded()));
-
-        box.getChildren().addAll(btnAdd, formPane, tableTugas);
-        return box;
+        scroll.setContent(scrollContent);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
     }
 
-    private VBox buildTugasForm() {
-        ComboBox<String> fMajelis = new ComboBox<>();
-        fMajelis.setPromptText("Pilih Nama Majelis*");
-        fMajelis.setMaxWidth(Double.MAX_VALUE);
-        refreshMajelisCombo(fMajelis);
+    private VBox buildTugasFormCard() {
+        TextField fIdMajelis = styledField("Id Majelis");
+        TextField fTugas     = styledField("Tugas");
+        TextField fHari      = styledSmallField("DD");
+        TextField fBulan     = styledSmallField("DD");
+        TextField fTahun     = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+        TextField fJam       = styledSmallField("00");
+        TextField fMenit     = styledSmallField("00");
 
-        TextField fTugas  = new TextField(); fTugas.setPromptText("Deskripsi tugas*");
-        DatePicker fTgl   = new DatePicker(LocalDate.now());
-        TextField fWaktu  = new TextField("09:00"); fWaktu.setPromptText("HH:MM");
+        LocalDate today = LocalDate.now();
+        fHari.setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+        fJam.setText("09"); fMenit.setText("00");
 
-        GridPane grid = formGrid();
-        grid.add(label("Nama Majelis*"), 0, 0);    grid.add(fMajelis, 1, 0);
-        grid.add(label("Deskripsi Tugas*"), 0, 1); grid.add(fTugas, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2);          grid.add(fTgl, 1, 2);
-        grid.add(label("Waktu (HH:MM)"), 0, 3);    grid.add(fWaktu, 1, 3);
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
+        HBox wktRow = new HBox(6, fJam, new Label(":") {{
+            setTextFill(Color.WHITE); setFont(Font.font("System", FontWeight.BOLD, 14));
+        }}, fMenit, new Label("WIB") {{ setTextFill(Color.WHITE); }});
+        wktRow.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnSimpan = primaryButton("💾 Simpan Jadwal Tugas");
-        Label lblStatus  = new Label();
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(200);
+        grid.getColumnConstraints().addAll(c0, c1);
 
-        btnSimpan.setOnAction(e -> {
-            if (!validateNotEmpty(lblStatus, fTugas.getText())) return;
-            if (fMajelis.getValue() == null) {
-                lblStatus.setText("⚠️ Pilih majelis terlebih dahulu.");
-                lblStatus.setTextFill(Color.RED); return;
-            }
+        grid.add(cardLabel("Id Majelis"), 0, 0);
+        grid.add(fIdMajelis, 0, 1);
+        grid.add(cardLabel("Tanggal Tugas"), 1, 0);
+        grid.add(tglRow, 1, 1);
+        grid.add(cardLabel("Tugas"), 0, 2);
+        grid.add(fTugas, 0, 3);
+        grid.add(cardLabel("Waktu Ibadah"), 1, 2);
+        grid.add(wktRow, 1, 3);
+        GridPane.setColumnSpan(fTugas, 2);
+        GridPane.setColumnSpan(cardLabel("Tugas"), 2);
+
+        Button btnTambah = primaryButton("Tambahkan  Tugas");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
+
+        btnTambah.setOnAction(e -> {
             try {
+                String idMajelis = fIdMajelis.getText().trim();
+                String tugas     = fTugas.getText().trim();
+                if (tugas.isEmpty()) { lblStatus.setText("⚠ Deskripsi tugas wajib diisi."); return; }
+
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                LocalTime wkt = LocalTime.of(
+                        Integer.parseInt(fJam.getText().trim()),
+                        Integer.parseInt(fMenit.getText().trim()));
+
                 JadwalTugas jt = new JadwalTugas();
-                jt.setIdUser(fMajelis.getValue().split("\\|")[0].trim());
-                jt.setTugas(fTugas.getText().trim());
-                jt.setTanggal(fTgl.getValue());
-                if (!fWaktu.getText().trim().isEmpty())
-                    jt.setWaktuIbadah(LocalTime.parse(fWaktu.getText().trim()));
+                jt.setIdUser(idMajelis);
+                jt.setTugas(tugas);
+                jt.setTanggal(tgl);
+                jt.setWaktuIbadah(wkt);
 
                 if (jadwalTugasDAO.insert(jt)) {
-                    lblStatus.setText("✅ Berhasil disimpan!"); lblStatus.setTextFill(Color.GREEN);
-                    fTugas.clear(); fWaktu.setText("09:00"); fTgl.setValue(LocalDate.now());
-                    fMajelis.setValue(null);
-                    loadJadwalTugas();
+                    lblStatus.setText("✅ Tugas berhasil disimpan!");
+                    fIdMajelis.clear(); fTugas.clear();
+                    refreshListTugas();
                 }
             } catch (Exception ex) {
-                lblStatus.setText("⚠️ Format waktu tidak valid (HH:MM)."); lblStatus.setTextFill(Color.RED);
+                lblStatus.setText("⚠ Periksa kembali isian tanggal dan waktu.");
             }
         });
 
-        VBox form = new VBox(10, grid, btnSimpan, lblStatus);
-        form.setPadding(new Insets(12));
-        return form;
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10;");
+        return card;
     }
 
-    private void editJadwalTugas(JadwalTugas item) {
+    private void refreshListTugas() {
+        if (listTugasBox == null) return;
+        listTugasBox.getChildren().clear();
+        List<JadwalTugas> list = jadwalTugasDAO.getAll();
+        if (list.isEmpty()) {
+            Label empty = new Label("Belum ada data jadwal tugas.");
+            empty.setTextFill(Color.web("#AAAAAA"));
+            listTugasBox.getChildren().add(empty);
+            return;
+        }
+        for (JadwalTugas item : list) {
+            listTugasBox.getChildren().add(buildTugasRow(item));
+        }
+    }
+
+    private HBox buildTugasRow(JadwalTugas item) {
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10, 14, 10, 14));
+        row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
+
+        String nama = item.getNamaMajelis() != null ? item.getNamaMajelis() : item.getIdUser();
+        Label lId    = rowLabel(nama, true);       lId.setPrefWidth(100);
+        Label lTugas = rowLabel(item.getTugas(), false);
+        HBox.setHgrow(lTugas, Priority.ALWAYS);
+        Label lWkt  = rowLabel(item.getWaktuStr(), false);  lWkt.setPrefWidth(90);
+        Label lTgl  = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(100);
+
+        Button btnEdit  = actionBtn("✎ Edit", ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditTugasDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) { jadwalTugasDAO.delete(item.getIdTugas()); refreshListTugas(); }
+        });
+
+        row.getChildren().addAll(
+                lId, divider(), lTugas, divider(), lWkt, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus
+        );
+        return row;
+    }
+
+    private void showEditTugasDialog(JadwalTugas item) {
         Dialog<JadwalTugas> dlg = new Dialog<>();
         dlg.setTitle("Edit Jadwal Tugas");
-
         ComboBox<String> fMajelis = new ComboBox<>();
         refreshMajelisCombo(fMajelis);
         TextField fTugas = new TextField(item.getTugas());
         DatePicker fTgl  = new DatePicker(item.getTanggal());
         TextField fWaktu = new TextField(item.getWaktuStr().replace(" WIB", "").equals("-") ? "" : item.getWaktuStr().replace(" WIB", ""));
 
-        GridPane grid = formGrid();
-        grid.add(label("Nama Majelis*"), 0, 0);    grid.add(fMajelis, 1, 0);
-        grid.add(label("Deskripsi Tugas*"), 0, 1); grid.add(fTugas, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2);          grid.add(fTgl, 1, 2);
-        grid.add(label("Waktu (HH:MM)"), 0, 3);    grid.add(fWaktu, 1, 3);
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Majelis"), 0, 0);       grid.add(fMajelis, 1, 0);
+        grid.add(dlgLabel("Tugas"), 0, 1);          grid.add(fTugas, 1, 1);
+        grid.add(dlgLabel("Tanggal"), 0, 2);        grid.add(fTgl, 1, 2);
+        grid.add(dlgLabel("Waktu (HH:MM)"), 0, 3); grid.add(fWaktu, 1, 3);
 
         dlg.getDialogPane().setContent(grid);
-        dlg.getDialogPane().setPrefWidth(400);
+        dlg.getDialogPane().setPrefWidth(420);
         ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
         dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
         dlg.setResultConverter(b -> {
             if (b == ok) {
                 item.setTugas(fTugas.getText().trim());
                 item.setTanggal(fTgl.getValue());
-                if (fMajelis.getValue() != null)
-                    item.setIdUser(fMajelis.getValue().split("\\|")[0].trim());
-                try {
-                    if (!fWaktu.getText().trim().isEmpty())
-                        item.setWaktuIbadah(LocalTime.parse(fWaktu.getText().trim()));
-                } catch (Exception ignored) {}
+                if (fMajelis.getValue() != null) item.setIdUser(fMajelis.getValue().split("\\|")[0].trim());
+                try { item.setWaktuIbadah(LocalTime.parse(fWaktu.getText().trim())); } catch (Exception ignored) {}
                 return item;
             }
             return null;
         });
-        dlg.showAndWait().ifPresent(jt -> { jadwalTugasDAO.update(jt); loadJadwalTugas(); });
-    }
-
-    private void loadJadwalTugas() {
-        if (tugasData == null) return;
-        tugasData.setAll(jadwalTugasDAO.getAll());
-    }
-
-    // ════════════════════════════════════════════════════════════════════
-    //  TAB: LOKASI GEREJA
-    // ════════════════════════════════════════════════════════════════════
-
-    @SuppressWarnings("unchecked")
-    private VBox buildLokasiTab() {
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(18));
-        box.setStyle("-fx-background-color: #F0F4FF;");
-
-        TitledPane formPane = new TitledPane("Tambah / Edit Lokasi", buildLokasiForm());
-        formPane.setCollapsible(true);
-        formPane.setExpanded(false);
-
-        tableLokasi = new TableView<>();
-        lokasiData  = FXCollections.observableArrayList();
-        tableLokasi.setItems(lokasiData);
-        VBox.setVgrow(tableLokasi, Priority.ALWAYS);
-
-        TableColumn<Lokasi, String> colNama = new TableColumn<>("Nama Tempat");
-        colNama.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getNamaTempat()));
-        colNama.setPrefWidth(180);
-
-        TableColumn<Lokasi, String> colAlamat = new TableColumn<>("Alamat");
-        colAlamat.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getAlamat()));
-        colAlamat.setPrefWidth(220);
-
-        TableColumn<Lokasi, String> colKontak = new TableColumn<>("Kontak");
-        colKontak.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getKontak()));
-        colKontak.setPrefWidth(150);
-
-        TableColumn<Lokasi, Void> colAksi = buildActionColumn(
-                "Lokasi",
-                item -> editLokasi((Lokasi) item),
-                item -> { lokasiDAO.delete(((Lokasi)item).getIdLokasi()); loadLokasi(); });
-
-        tableLokasi.getColumns().addAll(colNama, colAlamat, colKontak, colAksi);
-
-        Button btnAdd = primaryButton("+ Tambah Lokasi");
-        btnAdd.setOnAction(e -> formPane.setExpanded(!formPane.isExpanded()));
-        box.getChildren().addAll(btnAdd, formPane, tableLokasi);
-        return box;
-    }
-
-    private VBox buildLokasiForm() {
-        TextField fNama   = new TextField(); fNama.setPromptText("Nama tempat*");
-        TextField fAlamat = new TextField(); fAlamat.setPromptText("Alamat lengkap*");
-        TextField fKontak = new TextField(); fKontak.setPromptText("Nomor telepon / kontak");
-
-        GridPane grid = formGrid();
-        grid.add(label("Nama Tempat*"), 0, 0); grid.add(fNama, 1, 0);
-        grid.add(label("Alamat*"), 0, 1);       grid.add(fAlamat, 1, 1);
-        grid.add(label("Kontak"), 0, 2);        grid.add(fKontak, 1, 2);
-
-        Button btnSimpan = primaryButton("💾 Simpan Lokasi");
-        Label lblStatus  = new Label();
-
-        btnSimpan.setOnAction(e -> {
-            if (!validateNotEmpty(lblStatus, fNama.getText(), fAlamat.getText())) return;
-            Lokasi l = new Lokasi();
-            l.setNamaTempat(fNama.getText().trim());
-            l.setAlamat(fAlamat.getText().trim());
-            l.setKontak(fKontak.getText().trim());
-            l.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
-            if (lokasiDAO.insert(l)) {
-                lblStatus.setText("✅ Lokasi berhasil disimpan!"); lblStatus.setTextFill(Color.GREEN);
-                fNama.clear(); fAlamat.clear(); fKontak.clear();
-                loadLokasi();
-            }
-        });
-
-        VBox form = new VBox(10, grid, btnSimpan, lblStatus);
-        form.setPadding(new Insets(12));
-        return form;
-    }
-
-    private void editLokasi(Lokasi item) {
-        Dialog<Lokasi> dlg = new Dialog<>();
-        dlg.setTitle("Edit Lokasi");
-        TextField fNama   = new TextField(item.getNamaTempat());
-        TextField fAlamat = new TextField(item.getAlamat());
-        TextField fKontak = new TextField(item.getKontak());
-
-        GridPane grid = formGrid();
-        grid.add(label("Nama Tempat*"), 0, 0); grid.add(fNama, 1, 0);
-        grid.add(label("Alamat*"), 0, 1);       grid.add(fAlamat, 1, 1);
-        grid.add(label("Kontak"), 0, 2);        grid.add(fKontak, 1, 2);
-
-        dlg.getDialogPane().setContent(grid);
-        dlg.getDialogPane().setPrefWidth(400);
-        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
-        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
-        dlg.setResultConverter(b -> {
-            if (b == ok) {
-                item.setNamaTempat(fNama.getText().trim());
-                item.setAlamat(fAlamat.getText().trim());
-                item.setKontak(fKontak.getText().trim());
-                return item;
-            }
-            return null;
-        });
-        dlg.showAndWait().ifPresent(l -> { lokasiDAO.update(l); loadLokasi(); });
-    }
-
-    private void loadLokasi() {
-        if (lokasiData == null) return;
-        lokasiData.setAll(lokasiDAO.getAll());
+        dlg.showAndWait().ifPresent(jt -> { jadwalTugasDAO.update(jt); refreshListTugas(); });
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  HELPERS
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private <T> TableColumn<T, Void> buildActionColumn(
-            String entity,
-            java.util.function.Consumer<Object> onEdit,
-            java.util.function.Consumer<Object> onDelete) {
-
-        TableColumn<T, Void> col = new TableColumn<>("Aksi");
-        col.setPrefWidth(130);
-        col.setCellFactory(tc -> new TableCell<>() {
-            private final Button btnEdit = new Button("✏️ Edit");
-            private final Button btnHapus = new Button("🗑️ Hapus");
-            private final HBox box = new HBox(6, btnEdit, btnHapus);
-            {
-                box.setAlignment(Pos.CENTER);
-                btnEdit.setStyle("-fx-background-color: #5B8DEF; -fx-text-fill: white; " +
-                        "-fx-background-radius: 6; -fx-font-size: 11; -fx-cursor: hand;");
-                btnHapus.setStyle("-fx-background-color: #E74C3C; -fx-text-fill: white; " +
-                        "-fx-background-radius: 6; -fx-font-size: 11; -fx-cursor: hand;");
-                btnEdit.setOnAction(e -> onEdit.accept(getTableView().getItems().get(getIndex())));
-                btnHapus.setOnAction(e -> {
-                    Object item = getTableView().getItems().get(getIndex());
-                    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                    confirm.setTitle("Konfirmasi Hapus");
-                    confirm.setContentText("Hapus data ini?");
-                    confirm.showAndWait().filter(r -> r == ButtonType.OK)
-                            .ifPresent(r -> onDelete.accept(item));
-                });
-            }
-            @Override protected void updateItem(Void v, boolean empty) {
-                super.updateItem(v, empty);
-                setGraphic(empty ? null : box);
-            }
-        });
-        return col;
+    private String findOrCreateLokasi(String namaLokasi) {
+        if (namaLokasi == null || namaLokasi.isEmpty()) return "";
+        List<Lokasi> lokasis = lokasiDAO.getAll();
+        for (Lokasi l : lokasis) {
+            if (l.getNamaTempat().equalsIgnoreCase(namaLokasi)) return l.getIdLokasi();
+        }
+        Lokasi newLok = new Lokasi();
+        newLok.setNamaTempat(namaLokasi);
+        newLok.setAlamat(namaLokasi);
+        newLok.setKontak("");
+        newLok.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+        lokasiDAO.insert(newLok);
+        List<Lokasi> updated = lokasiDAO.getAll();
+        for (Lokasi l : updated) {
+            if (l.getNamaTempat().equalsIgnoreCase(namaLokasi)) return l.getIdLokasi();
+        }
+        return "";
     }
 
     private void refreshLokasiCombo(ComboBox<String> combo) {
         combo.getItems().clear();
-        lokasiDAO.getAll().forEach(l ->
-                combo.getItems().add(l.getIdLokasi() + " | " + l.getNamaTempat()));
+        lokasiDAO.getAll().forEach(l -> combo.getItems().add(l.getIdLokasi() + " | " + l.getNamaTempat()));
     }
 
     private void refreshMajelisCombo(ComboBox<String> combo) {
         combo.getItems().clear();
-        userDAO.getAllMajelis().forEach(u ->
-                combo.getItems().add(u.getIdUser() + " | " + u.getNama()));
+        userDAO.getAllMajelis().forEach(u -> combo.getItems().add(u.getIdUser() + " | " + u.getNama()));
     }
 
-    private GridPane formGrid() {
-        GridPane g = new GridPane();
-        g.setHgap(12); g.setVgap(10);
-        ColumnConstraints c0 = new ColumnConstraints(130);
-        ColumnConstraints c1 = new ColumnConstraints();
-        c1.setHgrow(Priority.ALWAYS);
-        g.getColumnConstraints().addAll(c0, c1);
-        return g;
+    private boolean confirmDelete() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Hapus data ini?", ButtonType.OK, ButtonType.CANCEL);
+        alert.setTitle("Konfirmasi Hapus");
+        alert.setHeaderText(null);
+        return alert.showAndWait().filter(r -> r == ButtonType.OK).isPresent();
     }
 
-    private Label label(String text) {
-        Label lbl = new Label(text);
-        lbl.setFont(Font.font("System", FontWeight.BOLD, 12));
-        lbl.setTextFill(Color.web("#4A5568"));
-        return lbl;
+    // ── UI component builders ───────────────────────────────────────
+
+    private Text sectionTitle(String text) {
+        Text t = new Text(text);
+        t.setFill(Color.WHITE);
+        t.setFont(Font.font("System", FontWeight.BOLD, 18));
+        return t;
+    }
+
+    private Label cardLabel(String text) {
+        Label l = new Label(text);
+        l.setTextFill(Color.web("#CCCCCC"));
+        l.setFont(Font.font("System", 12));
+        return l;
+    }
+
+    private Label rowLabel(String text, boolean bold) {
+        Label l = new Label(text);
+        l.setTextFill(Color.WHITE);
+        l.setFont(Font.font("System", bold ? FontWeight.BOLD : FontWeight.NORMAL, 13));
+        l.setPadding(new Insets(0, 8, 0, 8));
+        return l;
+    }
+
+    private TextField styledField(String prompt) {
+        TextField f = new TextField();
+        f.setPromptText(prompt);
+        f.setStyle("-fx-background-color: " + INPUT + "; -fx-text-fill: white; " +
+                "-fx-prompt-text-fill: rgba(255,255,255,0.4); -fx-background-radius: 8; " +
+                "-fx-border-width: 0; -fx-padding: 8 12 8 12; -fx-font-size: 13;");
+        f.setMaxWidth(Double.MAX_VALUE);
+        return f;
+    }
+
+    private TextField styledSmallField(String prompt) {
+        TextField f = styledField(prompt);
+        f.setPrefWidth(52);
+        f.setMaxWidth(52);
+        f.setAlignment(Pos.CENTER);
+        return f;
     }
 
     private Button primaryButton(String text) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: linear-gradient(to right, #5B8DEF, #7C5CBF); " +
-                     "-fx-text-fill: white; " +
-                     "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                     "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;");
-        btn.setOnMouseEntered(e -> btn.setStyle(
-                "-fx-background-color: linear-gradient(to right, #3D6FD4, #6A4AAD); " +
-                "-fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;"));
-        btn.setOnMouseExited(e -> btn.setStyle(
-                "-fx-background-color: linear-gradient(to right, #5B8DEF, #7C5CBF); " +
-                "-fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;"));
+        btn.setFont(Font.font("System", FontWeight.BOLD, 13));
+        btn.setPadding(new Insets(10, 40, 10, 40));
+        String style = "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
+        String hover = "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
+        btn.setStyle(style);
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(style));
         return btn;
     }
 
-    private boolean validateNotEmpty(Label statusLabel, String... fields) {
-        for (String f : fields) {
-            if (f == null || f.trim().isEmpty()) {
-                statusLabel.setText("⚠️ Semua field wajib tidak boleh kosong.");
-                statusLabel.setTextFill(Color.RED);
-                return false;
-            }
-        }
-        return true;
+    private Button actionBtn(String text, String color) {
+        Button btn = new Button(text);
+        btn.setFont(Font.font("System", 12));
+        btn.setPadding(new Insets(5, 12, 5, 12));
+        String style = "-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;";
+        btn.setStyle(style);
+        return btn;
+    }
+
+    private Region divider() {
+        Region r = new Region();
+        r.setPrefWidth(1); r.setPrefHeight(20);
+        r.setStyle("-fx-background-color: " + DIVIDER + ";");
+        r.setPadding(new Insets(0, 0, 0, 0));
+        VBox.setMargin(r, new Insets(0, 4, 0, 4));
+        return r;
+    }
+
+    private Region spacer(double w) {
+        Region r = new Region(); r.setPrefWidth(w);
+        return r;
+    }
+
+    private Label dlgLabel(String text) {
+        Label l = new Label(text);
+        l.setFont(Font.font("System", FontWeight.BOLD, 12));
+        l.setTextFill(Color.web("#4A5568"));
+        return l;
+    }
+
+    private GridPane dialogGrid() {
+        GridPane g = new GridPane();
+        g.setHgap(12); g.setVgap(10);
+        ColumnConstraints c0 = new ColumnConstraints(130);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setHgrow(Priority.ALWAYS);
+        g.getColumnConstraints().addAll(c0, c1);
+        return g;
     }
 }

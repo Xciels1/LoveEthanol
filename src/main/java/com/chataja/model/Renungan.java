@@ -14,6 +14,7 @@ public class Renungan {
     private String isi;
     private LocalDate tanggal;
     private String idUser;
+    private String fotoPath;
 
     public Renungan() {}
 
@@ -53,6 +54,14 @@ public class Renungan {
 
     public String getIdUser() { return idUser; }
     public void setIdUser(String idUser) { this.idUser = idUser; }
+
+    public String getFotoPath() { return fotoPath; }
+    public void setFotoPath(String fotoPath) { this.fotoPath = fotoPath; }
+
+    // cek foto ada apa ga
+    public boolean hasFoto(){
+        return fotoPath != null && !fotoPath.isBlank();
+    }
 
     public String getTanggalStr() {
         if (tanggal == null) return "-";

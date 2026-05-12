@@ -6,43 +6,54 @@ import com.chataja.dao.RenunganDAO;
 import com.chataja.model.Pengumuman;
 import com.chataja.model.Renungan;
 import com.chataja.model.User;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.stage.FileChooser;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Panel manajemen untuk Majelis Gereja.
- * UC-5: Kelola Pengumuman (tambah/edit/hapus)
- * UC-5: Kelola Renungan Harian (tambah/edit/hapus)
+ * Desain: dark theme sesuai Figma.
  */
 public class MajelisView extends VBox {
 
     private User currentUser;
     private final ChatBot chatBot;
     private final PengumumanDAO pengumumanDAO = new PengumumanDAO();
-    private final RenunganDAO renunganDAO = new RenunganDAO();
+    private final RenunganDAO   renunganDAO   = new RenunganDAO();
 
-    private TabPane tabPane;
-    private Tab tabPengumuman;
-    private Tab tabRenungan;
+    private VBox panePengumuman;
+    private VBox paneRenungan;
 
-    // ── Pengumuman ──
-    private TableView<Pengumuman> tablePengumuman;
-    private ObservableList<Pengumuman> pengumumanData;
+    private VBox listPengumumanBox;
+    private VBox listRenunganBox;
 
-    // ── Renungan ──
-    private TableView<Renungan> tableRenungan;
-    private ObservableList<Renungan> renunganData;
+    private static final String BG      = "#3B3B3B";
+    private static final String CARD    = "#484848";
+    private static final String INPUT   = "#5C5C5C";
+    private static final String ACCENT  = "#5B8DEF";
+    private static final String DANGER  = "#E74C3C";
+    private static final String DIVIDER = "#666666";
 
     public MajelisView(User user, ChatBot chatBot) {
         this.currentUser = user;
@@ -52,188 +63,376 @@ public class MajelisView extends VBox {
         setManaged(false);
     }
 
-    public void setUser(User user) {
-        this.currentUser = user;
-    }
+    public void setUser(User user) { this.currentUser = user; }
 
     public void showPengumuman() {
-        if (tabPane != null) tabPane.getSelectionModel().select(tabPengumuman);
+        panePengumuman.setVisible(true);  panePengumuman.setManaged(true);
+        paneRenungan.setVisible(false);   paneRenungan.setManaged(false);
     }
 
     public void showRenungan() {
-        if (tabPane != null) tabPane.getSelectionModel().select(tabRenungan);
+        paneRenungan.setVisible(true);    paneRenungan.setManaged(true);
+        panePengumuman.setVisible(false); panePengumuman.setManaged(false);
     }
 
     public void refresh() {
-        loadPengumuman();
-        loadRenungan();
+        refreshListPengumuman();
+        refreshListRenungan();
     }
 
     private void buildUI() {
-        setStyle("-fx-background-color: #F0F4FF;");
+        setStyle("-fx-background-color: " + BG + ";");
         VBox.setVgrow(this, Priority.ALWAYS);
 
-        // ── Header ──────────────────────────────────────────────────────
-        HBox header = new HBox(14);
-        header.setPadding(new Insets(18, 24, 18, 24));
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-width: 0 0 1 0;");
+        StackPane contentStack = new StackPane();
+        VBox.setVgrow(contentStack, Priority.ALWAYS);
 
-        javafx.scene.shape.Circle iconCircle = new javafx.scene.shape.Circle(20);
-        iconCircle.setFill(Color.web("#7C5CBF"));
-        javafx.scene.layout.StackPane iconBox = new javafx.scene.layout.StackPane(iconCircle);
-        Text iconText = new Text("✍");
-        iconText.setFill(Color.WHITE);
-        iconText.setFont(Font.font("System", FontWeight.BOLD, 14));
-        iconBox.getChildren().add(iconText);
+        panePengumuman = buildPengumumanPane();
+        paneRenungan   = buildRenunganPane();
 
-        VBox htxt = new VBox(3);
-        Text htitle = new Text("Panel Majelis");
-        htitle.setFont(Font.font("System", FontWeight.BOLD, 16));
-        htitle.setFill(Color.web("#1A1F36"));
-        Text hsub = new Text("Kelola pengumuman dan renungan harian gereja");
-        hsub.setFont(Font.font("System", 12));
-        hsub.setFill(Color.web("#8892B0"));
-        htxt.getChildren().addAll(htitle, hsub);
-        header.getChildren().addAll(iconBox, htxt);
+        // Default: show pengumuman
+        paneRenungan.setVisible(false);
+        paneRenungan.setManaged(false);
 
-        // ── TabPane ──────────────────────────────────────────────────────
-        tabPane = new TabPane();
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
+        contentStack.getChildren().addAll(panePengumuman, paneRenungan);
+        getChildren().add(contentStack);
 
-        tabPengumuman = new Tab("📢  Pengumuman", buildPengumumanTab());
-        tabRenungan   = new Tab("📖  Renungan Harian", buildRenunganTab());
-
-        tabPane.getTabs().addAll(tabPengumuman, tabRenungan);
-        tabPane.getSelectionModel().selectedItemProperty().addListener(
-                (obs, old, nv) -> refresh());
-
-        getChildren().addAll(header, tabPane);
-        loadPengumuman();
-        loadRenungan();
+        refreshListPengumuman();
+        refreshListRenungan();
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  TAB: PENGUMUMAN
+    //  PANE: PENGUMUMAN
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private VBox buildPengumumanTab() {
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(18));
-        box.setStyle("-fx-background-color: #F0F4FF;");
+    private VBox buildPengumumanPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
 
-        // ── Form ──
-        TitledPane formPane = new TitledPane("Tambah / Edit Pengumuman", buildPengumumanForm());
-        formPane.setCollapsible(true);
-        formPane.setExpanded(false);
-        formPane.setStyle("-fx-font-weight: bold;");
+        HBox header = ChatView.buildPageHeader("Kelola Pengumuman");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
-        // ── Table ──
-        tablePengumuman = new TableView<>();
-        pengumumanData  = FXCollections.observableArrayList();
-        tablePengumuman.setItems(pengumumanData);
-        VBox.setVgrow(tablePengumuman, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        TableColumn<Pengumuman, String> colJudul = new TableColumn<>("Judul");
-        colJudul.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getJudul()));
-        colJudul.setPrefWidth(200);
+        VBox content = new VBox(16);
+        content.setPadding(new Insets(16));
+        content.setStyle("-fx-background-color: " + BG + ";");
 
-        TableColumn<Pengumuman, String> colIsi = new TableColumn<>("Isi");
-        colIsi.setCellValueFactory(c -> {
-            String isi = c.getValue().getIsi();
-            return new SimpleStringProperty(isi != null && isi.length() > 60
-                    ? isi.substring(0, 60) + "..." : isi);
+        content.getChildren().add(sectionTitle("Tambah Pengumuman"));
+        content.getChildren().add(buildPengumumanFormCard());
+        content.getChildren().add(sectionTitle("Daftar Pengumuman"));
+
+        listPengumumanBox = new VBox(8);
+        listPengumumanBox.setStyle(
+                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
+        content.getChildren().add(listPengumumanBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildPengumumanFormCard() {
+        TextField fJudul  = styledField("judul");
+        TextArea  fIsi    = styledTextArea("pengumuman");
+        TextField fHari   = styledSmallField("DD");
+        TextField fBulan  = styledSmallField("MM");
+        TextField fTahun  = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+
+        LocalDate today = LocalDate.now();
+        fHari.setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+
+        // Container untuk gambar yang sudah dipilih
+        final File[] selectedImageFile = {null};
+
+        // Drop-zone untuk foto dengan drag & drop dan click to browse
+        VBox dropZone = new VBox(6);
+        dropZone.setAlignment(Pos.CENTER);
+        dropZone.setPrefSize(120, 120);
+        dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
+                "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8; -fx-cursor: hand;");
+
+        ImageView imagePreview = new ImageView();
+        imagePreview.setFitWidth(110);
+        imagePreview.setFitHeight(110);
+        imagePreview.setPreserveRatio(true);
+        imagePreview.setVisible(false);
+
+        Label dropText  = new Label("Klik atau drop gambar");
+        dropText.setTextFill(Color.web("#AAAAAA"));
+        dropText.setFont(Font.font("System", 11));
+        Label dropIcon  = new Label("📷");
+        dropIcon.setFont(Font.font("System", 18));
+
+        VBox placeholderBox = new VBox(6, dropText, dropIcon);
+        placeholderBox.setAlignment(Pos.CENTER);
+
+        dropZone.getChildren().addAll(placeholderBox, imagePreview);
+
+        // Drag & Drop handlers
+        dropZone.setOnDragOver((DragEvent event) -> {
+            if (event.getGestureSource() != dropZone && event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY);
+            }
+            event.consume();
         });
-        colIsi.setPrefWidth(250);
 
-        TableColumn<Pengumuman, String> colTgl = new TableColumn<>("Tanggal");
-        colTgl.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTanggalStr()));
-        colTgl.setPrefWidth(110);
+        dropZone.setOnDragDropped((DragEvent event) -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles() && !db.getFiles().isEmpty()) {
+                File file = db.getFiles().get(0);
+                if (isImageFile(file)) {
+                    selectedImageFile[0] = file;
+                    try {
+                        Image img = new Image(file.toURI().toString());
+                        imagePreview.setImage(img);
+                        imagePreview.setVisible(true);
+                        placeholderBox.setVisible(false);
+                        success = true;
+                    } catch (Exception e) {
+                        System.err.println("Error loading image: " + e.getMessage());
+                    }
+                }
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
 
-        TableColumn<Pengumuman, Void> colAksi = buildActionColumn(
-                item -> editPengumuman((Pengumuman) item),
-                item -> { pengumumanDAO.delete(((Pengumuman)item).getIdPengumuman()); loadPengumuman(); });
+        // Click to browse
+        dropZone.setOnMouseClicked(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Pilih Gambar");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File file = fileChooser.showOpenDialog(dropZone.getScene().getWindow());
+            if (file != null && isImageFile(file)) {
+                selectedImageFile[0] = file;
+                try {
+                    Image img = new Image(file.toURI().toString());
+                    imagePreview.setImage(img);
+                    imagePreview.setVisible(true);
+                    placeholderBox.setVisible(false);
+                } catch (Exception ex) {
+                    System.err.println("Error loading image: " + ex.getMessage());
+                }
+            }
+        });
 
-        tablePengumuman.getColumns().addAll(colJudul, colIsi, colTgl, colAksi);
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnAdd = primaryButton("+ Tambah Pengumuman");
-        btnAdd.setOnAction(e -> formPane.setExpanded(!formPane.isExpanded()));
+        // Layout grid
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(160);
+        grid.getColumnConstraints().addAll(c0, c1);
 
-        box.getChildren().addAll(btnAdd, formPane, tablePengumuman);
-        return box;
-    }
+        grid.add(cardLabel("Judul Pengumuman"), 0, 0);
+        grid.add(fJudul, 0, 1);
+        grid.add(cardLabel("Tanggal Pengumuman"), 1, 0);
+        grid.add(tglRow, 1, 1);
 
-    private VBox buildPengumumanForm() {
-        TextField fJudul = new TextField();
-        fJudul.setPromptText("Judul pengumuman*");
+        grid.add(cardLabel("Isi Pengumuman"), 0, 2);
+        grid.add(cardLabel("Tambahkan Foto *(opsional)"), 1, 2);
+        grid.add(fIsi, 0, 3);
+        grid.add(dropZone, 1, 3);
 
-        TextArea fIsi = new TextArea();
-        fIsi.setPromptText("Isi pengumuman*");
-        fIsi.setPrefRowCount(4);
-        fIsi.setWrapText(true);
+        Button btnTambah = primaryButton("Tambahkan  Pengumuman");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(4, 0, 0, 0));
 
-        DatePicker fTgl = new DatePicker(LocalDate.now());
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
 
-        GridPane grid = formGrid();
-        grid.add(label("Judul*"), 0, 0);   grid.add(fJudul, 1, 0);
-        grid.add(label("Isi*"), 0, 1);     grid.add(fIsi, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2); grid.add(fTgl, 1, 2);
-
-        Button btnSimpan = primaryButton("💾 Tambahkan Pengumuman");
-        Label lblStatus  = new Label();
-
-        btnSimpan.setOnAction(e -> {
-            // Validasi: highlight field kosong dengan warna merah
-            boolean valid = true;
-            if (fJudul.getText().trim().isEmpty()) {
-                fJudul.setStyle(redFieldStyle());
-                valid = false;
-            } else fJudul.setStyle(normalFieldStyle());
-
-            if (fIsi.getText().trim().isEmpty()) {
-                fIsi.setStyle(redFieldStyle());
-                valid = false;
-            } else fIsi.setStyle(normalFieldStyle());
-
-            if (!valid) {
-                lblStatus.setText("⚠️ Field yang ditandai merah wajib diisi.");
-                lblStatus.setTextFill(Color.RED);
+        btnTambah.setOnAction(e -> {
+            String judul = fJudul.getText().trim();
+            String isi   = fIsi.getText().trim();
+            if (judul.isEmpty() || isi.isEmpty()) {
+                lblStatus.setText("⚠ Judul dan isi wajib diisi.");
                 return;
             }
+            try {
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                Pengumuman p = new Pengumuman();
+                p.setJudul(judul); p.setIsi(isi); p.setTanggal(tgl);
+                p.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
 
-            Pengumuman p = new Pengumuman();
-            p.setJudul(fJudul.getText().trim());
-            p.setIsi(fIsi.getText().trim());
-            p.setTanggal(fTgl.getValue());
-            p.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+                // Simpan gambar jika ada
+                if (selectedImageFile[0] != null) {
+                    String savedPath = saveImage(selectedImageFile[0], "pengumuman");
+                    if (savedPath != null) {
+                        p.setFotoPath(savedPath);
+                    }
+                }
 
-            if (pengumumanDAO.insert(p)) {
-                lblStatus.setText("✅ Pengumuman berhasil ditambahkan!");
-                lblStatus.setTextFill(Color.GREEN);
-                fJudul.clear(); fIsi.clear(); fTgl.setValue(LocalDate.now());
-                loadPengumuman();
+                if (pengumumanDAO.insert(p)) {
+                    lblStatus.setText("✅ Pengumuman berhasil disimpan!");
+                    fJudul.clear(); fIsi.clear();
+                    selectedImageFile[0] = null;
+                    imagePreview.setImage(null);
+                    imagePreview.setVisible(false);
+                    placeholderBox.setVisible(true);
+                    refreshListPengumuman();
+                }
+            } catch (Exception ex) {
+                lblStatus.setText("⚠ Periksa kembali isian tanggal.");
             }
         });
 
-        VBox form = new VBox(10, grid, btnSimpan, lblStatus);
-        form.setPadding(new Insets(12));
-        return form;
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10;");
+        return card;
     }
 
-    private void editPengumuman(Pengumuman item) {
+    private void refreshListPengumuman() {
+        if (listPengumumanBox == null) return;
+        listPengumumanBox.getChildren().clear();
+        List<Pengumuman> list = pengumumanDAO.getAll();
+        if (list.isEmpty()) {
+            Label empty = new Label("Belum ada pengumuman.");
+            empty.setTextFill(Color.web("#AAAAAA"));
+            listPengumumanBox.getChildren().add(empty);
+            return;
+        }
+        for (Pengumuman item : list) {
+            listPengumumanBox.getChildren().add(buildPengumumanRow(item));
+        }
+    }
+
+    private HBox buildPengumumanRow(Pengumuman item) {
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10, 14, 10, 14));
+        row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
+
+        // Thumbnail gambar
+        ImageView thumbnail = new ImageView();
+        thumbnail.setFitWidth(50);
+        thumbnail.setFitHeight(50);
+        thumbnail.setPreserveRatio(true);
+        thumbnail.setStyle("-fx-background-color: #666; -fx-background-radius: 4;");
+
+        if (item.hasFoto()) {
+            try {
+                File imgFile = new File(item.getFotoPath());
+                if (imgFile.exists()) {
+                    thumbnail.setImage(new Image(imgFile.toURI().toString()));
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading thumbnail: " + e.getMessage());
+            }
+        } else {
+            // Placeholder jika tidak ada gambar
+            Label noImg = new Label("📷");
+            noImg.setFont(Font.font("System", 20));
+            noImg.setTextFill(Color.web("#888"));
+            StackPane placeholder = new StackPane(noImg);
+            placeholder.setPrefSize(50, 50);
+            placeholder.setStyle("-fx-background-color: #666; -fx-background-radius: 4;");
+            row.getChildren().add(placeholder);
+        }
+
+        if (item.hasFoto()) {
+            row.getChildren().add(thumbnail);
+        }
+
+        Label lJudul = rowLabel(item.getJudul(), true); lJudul.setPrefWidth(150);
+        String isiShort = item.getIsi() != null && item.getIsi().length() > 60
+                ? item.getIsi().substring(0, 60) + " ..." : item.getIsi();
+        Label lIsi  = rowLabel(isiShort != null ? isiShort : "-", false);
+        HBox.setHgrow(lIsi, Priority.ALWAYS);
+        Label lTgl  = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(100);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditPengumumanDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) { pengumumanDAO.delete(item.getIdPengumuman()); refreshListPengumuman(); }
+        });
+
+        row.getChildren().addAll(
+                lJudul, divider(), lIsi, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus
+        );
+        return row;
+    }
+
+    private void showEditPengumumanDialog(Pengumuman item) {
         Dialog<Pengumuman> dlg = new Dialog<>();
         dlg.setTitle("Edit Pengumuman");
-
         TextField fJudul = new TextField(item.getJudul());
         TextArea  fIsi   = new TextArea(item.getIsi()); fIsi.setPrefRowCount(5); fIsi.setWrapText(true);
         DatePicker fTgl  = new DatePicker(item.getTanggal());
 
-        GridPane grid = formGrid();
-        grid.add(label("Judul*"), 0, 0);   grid.add(fJudul, 1, 0);
-        grid.add(label("Isi*"), 0, 1);     grid.add(fIsi, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2); grid.add(fTgl, 1, 2);
+        // Image handling
+        final File[] newImageFile = {null};
+        VBox imageBox = new VBox(8);
+        imageBox.setAlignment(Pos.CENTER);
+
+        ImageView currentImage = new ImageView();
+        currentImage.setFitWidth(150);
+        currentImage.setFitHeight(150);
+        currentImage.setPreserveRatio(true);
+
+        Label imageLabel = new Label("Gambar saat ini:");
+        imageLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
+
+        if (item.hasFoto()) {
+            try {
+                File imgFile = new File(item.getFotoPath());
+                if (imgFile.exists()) {
+                    currentImage.setImage(new Image(imgFile.toURI().toString()));
+                    imageBox.getChildren().addAll(imageLabel, currentImage);
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading image: " + e.getMessage());
+            }
+        }
+
+        Button btnChangeImage = new Button("Ganti Gambar");
+        btnChangeImage.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Pilih Gambar Baru");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File file = fileChooser.showOpenDialog(dlg.getOwner());
+            if (file != null && isImageFile(file)) {
+                newImageFile[0] = file;
+                try {
+                    currentImage.setImage(new Image(file.toURI().toString()));
+                    if (!imageBox.getChildren().contains(currentImage)) {
+                        imageBox.getChildren().addAll(imageLabel, currentImage);
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Error loading new image: " + ex.getMessage());
+                }
+            }
+        });
+
+        imageBox.getChildren().add(btnChangeImage);
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Judul"), 0, 0);   grid.add(fJudul, 1, 0);
+        grid.add(dlgLabel("Isi"), 0, 1);     grid.add(fIsi, 1, 1);
+        grid.add(dlgLabel("Tanggal"), 0, 2); grid.add(fTgl, 1, 2);
+        grid.add(dlgLabel("Foto"), 0, 3);    grid.add(imageBox, 1, 3);
 
         dlg.getDialogPane().setContent(grid);
         dlg.getDialogPane().setPrefWidth(480);
@@ -244,133 +443,351 @@ public class MajelisView extends VBox {
                 item.setJudul(fJudul.getText().trim());
                 item.setIsi(fIsi.getText().trim());
                 item.setTanggal(fTgl.getValue());
+
+                // Simpan gambar baru jika ada
+                if (newImageFile[0] != null) {
+                    String savedPath = saveImage(newImageFile[0], "pengumuman");
+                    if (savedPath != null) {
+                        item.setFotoPath(savedPath);
+                    }
+                }
                 return item;
             }
             return null;
         });
-        dlg.showAndWait().ifPresent(p -> { pengumumanDAO.update(p); loadPengumuman(); });
-    }
-
-    private void loadPengumuman() {
-        if (pengumumanData == null) return;
-        pengumumanData.setAll(pengumumanDAO.getAll());
+        dlg.showAndWait().ifPresent(p -> { pengumumanDAO.update(p); refreshListPengumuman(); });
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  TAB: RENUNGAN HARIAN
+    //  PANE: RENUNGAN
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private VBox buildRenunganTab() {
-        VBox box = new VBox(14);
-        box.setPadding(new Insets(18));
-        box.setStyle("-fx-background-color: #F0F4FF;");
+    private VBox buildRenunganPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
 
-        TitledPane formPane = new TitledPane("Tambah / Edit Renungan", buildRenunganForm());
-        formPane.setCollapsible(true);
-        formPane.setExpanded(false);
-        formPane.setStyle("-fx-font-weight: bold;");
+        HBox header = ChatView.buildPageHeader("Kelola Renungan");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
-        tableRenungan = new TableView<>();
-        renunganData  = FXCollections.observableArrayList();
-        tableRenungan.setItems(renunganData);
-        VBox.setVgrow(tableRenungan, Priority.ALWAYS);
+        ScrollPane scroll = new ScrollPane();
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        TableColumn<Renungan, String> colJudul = new TableColumn<>("Judul");
-        colJudul.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getJudul()));
-        colJudul.setPrefWidth(200);
+        VBox content = new VBox(16);
+        content.setPadding(new Insets(16));
+        content.setStyle("-fx-background-color: " + BG + ";");
 
-        TableColumn<Renungan, String> colIsi = new TableColumn<>("Isi");
-        colIsi.setCellValueFactory(c -> {
-            String isi = c.getValue().getIsi();
-            return new SimpleStringProperty(isi != null && isi.length() > 60
-                    ? isi.substring(0, 60) + "..." : isi);
+        content.getChildren().add(sectionTitle("Tambah Renungan"));
+        content.getChildren().add(buildRenunganFormCard());
+        content.getChildren().add(sectionTitle("Daftar Pengumuman"));
+
+        listRenunganBox = new VBox(8);
+        listRenunganBox.setStyle(
+                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
+        content.getChildren().add(listRenunganBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildRenunganFormCard() {
+        TextField fJudul = styledField("judul");
+        TextArea  fIsi   = styledTextArea("Renungan");
+        TextField fHari  = styledSmallField("DD");
+        TextField fBulan = styledSmallField("MM");
+        TextField fTahun = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+
+        LocalDate today = LocalDate.now();
+        fHari.setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+
+        // Container untuk gambar yang sudah dipilih
+        final File[] selectedImageFile = {null};
+
+        // Drop-zone untuk foto dengan drag & drop dan click to browse
+        VBox dropZone = new VBox(6);
+        dropZone.setAlignment(Pos.CENTER);
+        dropZone.setPrefSize(120, 120);
+        dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
+                "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8; -fx-cursor: hand;");
+
+        ImageView imagePreview = new ImageView();
+        imagePreview.setFitWidth(110);
+        imagePreview.setFitHeight(110);
+        imagePreview.setPreserveRatio(true);
+        imagePreview.setVisible(false);
+
+        Label dropText = new Label("Klik atau drop gambar");
+        dropText.setTextFill(Color.web("#AAAAAA"));
+        dropText.setFont(Font.font("System", 11));
+        Label dropIcon = new Label("📷");
+        dropIcon.setFont(Font.font("System", 18));
+
+        VBox placeholderBox = new VBox(6, dropText, dropIcon);
+        placeholderBox.setAlignment(Pos.CENTER);
+
+        dropZone.getChildren().addAll(placeholderBox, imagePreview);
+
+        // Drag & Drop handlers
+        dropZone.setOnDragOver((DragEvent event) -> {
+            if (event.getGestureSource() != dropZone && event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(TransferMode.COPY);
+            }
+            event.consume();
         });
-        colIsi.setPrefWidth(250);
 
-        TableColumn<Renungan, String> colTgl = new TableColumn<>("Tanggal");
-        colTgl.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().getTanggalStr()));
-        colTgl.setPrefWidth(110);
+        dropZone.setOnDragDropped((DragEvent event) -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles() && !db.getFiles().isEmpty()) {
+                File file = db.getFiles().get(0);
+                if (isImageFile(file)) {
+                    selectedImageFile[0] = file;
+                    try {
+                        Image img = new Image(file.toURI().toString());
+                        imagePreview.setImage(img);
+                        imagePreview.setVisible(true);
+                        placeholderBox.setVisible(false);
+                        success = true;
+                    } catch (Exception e) {
+                        System.err.println("Error loading image: " + e.getMessage());
+                    }
+                }
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
 
-        TableColumn<Renungan, Void> colAksi = buildActionColumn(
-                item -> editRenungan((Renungan) item),
-                item -> { renunganDAO.delete(((Renungan)item).getIdRenungan()); loadRenungan(); });
+        // Click to browse
+        dropZone.setOnMouseClicked(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Pilih Gambar");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File file = fileChooser.showOpenDialog(dropZone.getScene().getWindow());
+            if (file != null && isImageFile(file)) {
+                selectedImageFile[0] = file;
+                try {
+                    Image img = new Image(file.toURI().toString());
+                    imagePreview.setImage(img);
+                    imagePreview.setVisible(true);
+                    placeholderBox.setVisible(false);
+                } catch (Exception ex) {
+                    System.err.println("Error loading image: " + ex.getMessage());
+                }
+            }
+        });
 
-        tableRenungan.getColumns().addAll(colJudul, colIsi, colTgl, colAksi);
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
 
-        Button btnAdd = primaryButton("+ Tambah Renungan");
-        btnAdd.setOnAction(e -> formPane.setExpanded(!formPane.isExpanded()));
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(160);
+        grid.getColumnConstraints().addAll(c0, c1);
 
-        box.getChildren().addAll(btnAdd, formPane, tableRenungan);
-        return box;
-    }
+        grid.add(cardLabel("Judul Renungan"), 0, 0);
+        grid.add(fJudul, 0, 1);
+        grid.add(cardLabel("Tanggal Renungan"), 1, 0);
+        grid.add(tglRow, 1, 1);
+        grid.add(cardLabel("Isi Renungan"), 0, 2);
+        grid.add(cardLabel("Tambahkan Foto *(opsional)"), 1, 2);
+        grid.add(fIsi, 0, 3);
+        grid.add(dropZone, 1, 3);
 
-    private VBox buildRenunganForm() {
-        TextField fJudul = new TextField();
-        fJudul.setPromptText("Judul renungan*");
+        Button btnTambah = primaryButton("Tambahkan  Renungan");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(4, 0, 0, 0));
 
-        TextArea fIsi = new TextArea();
-        fIsi.setPromptText("Isi renungan harian*");
-        fIsi.setPrefRowCount(5);
-        fIsi.setWrapText(true);
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
 
-        DatePicker fTgl = new DatePicker(LocalDate.now());
-
-        GridPane grid = formGrid();
-        grid.add(label("Judul*"), 0, 0);          grid.add(fJudul, 1, 0);
-        grid.add(label("Isi Renungan*"), 0, 1);   grid.add(fIsi, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2);         grid.add(fTgl, 1, 2);
-
-        Button btnSimpan = primaryButton("💾 Tambahkan Renungan");
-        Label lblStatus  = new Label();
-
-        btnSimpan.setOnAction(e -> {
-            boolean valid = true;
-            if (fJudul.getText().trim().isEmpty()) {
-                fJudul.setStyle(redFieldStyle()); valid = false;
-            } else fJudul.setStyle(normalFieldStyle());
-
-            if (fIsi.getText().trim().isEmpty()) {
-                fIsi.setStyle(redFieldStyle()); valid = false;
-            } else fIsi.setStyle(normalFieldStyle());
-
-            if (!valid) {
-                lblStatus.setText("⚠️ Field yang ditandai merah wajib diisi.");
-                lblStatus.setTextFill(Color.RED);
+        btnTambah.setOnAction(e -> {
+            String judul = fJudul.getText().trim();
+            String isi   = fIsi.getText().trim();
+            if (judul.isEmpty() || isi.isEmpty()) {
+                lblStatus.setText("⚠ Judul dan isi renungan wajib diisi.");
                 return;
             }
+            try {
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                Renungan r = new Renungan();
+                r.setJudul(judul); r.setIsi(isi); r.setTanggal(tgl);
+                r.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
 
-            Renungan r = new Renungan();
-            r.setJudul(fJudul.getText().trim());
-            r.setIsi(fIsi.getText().trim());
-            r.setTanggal(fTgl.getValue());
-            r.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+                // Simpan gambar jika ada
+                if (selectedImageFile[0] != null) {
+                    String savedPath = saveImage(selectedImageFile[0], "renungan");
+                    if (savedPath != null) {
+                        r.setFotoPath(savedPath);
+                    }
+                }
 
-            if (renunganDAO.insert(r)) {
-                lblStatus.setText("✅ Renungan berhasil ditambahkan!");
-                lblStatus.setTextFill(Color.GREEN);
-                fJudul.clear(); fIsi.clear(); fTgl.setValue(LocalDate.now());
-                loadRenungan();
+                if (renunganDAO.insert(r)) {
+                    lblStatus.setText("✅ Renungan berhasil disimpan!");
+                    fJudul.clear(); fIsi.clear();
+                    selectedImageFile[0] = null;
+                    imagePreview.setImage(null);
+                    imagePreview.setVisible(false);
+                    placeholderBox.setVisible(true);
+                    refreshListRenungan();
+                }
+            } catch (Exception ex) {
+                lblStatus.setText("⚠ Periksa kembali isian tanggal.");
             }
         });
 
-        VBox form = new VBox(10, grid, btnSimpan, lblStatus);
-        form.setPadding(new Insets(12));
-        return form;
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color: " + CARD + "; -fx-background-radius: 10;");
+        return card;
     }
 
-    private void editRenungan(Renungan item) {
+    private void refreshListRenungan() {
+        if (listRenunganBox == null) return;
+        listRenunganBox.getChildren().clear();
+        List<Renungan> list = renunganDAO.getAll();
+        if (list.isEmpty()) {
+            Label empty = new Label("Belum ada renungan.");
+            empty.setTextFill(Color.web("#AAAAAA"));
+            listRenunganBox.getChildren().add(empty);
+            return;
+        }
+        for (Renungan item : list) {
+            listRenunganBox.getChildren().add(buildRenunganRow(item));
+        }
+    }
+
+    private HBox buildRenunganRow(Renungan item) {
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10, 14, 10, 14));
+        row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
+
+        // Thumbnail gambar
+        ImageView thumbnail = new ImageView();
+        thumbnail.setFitWidth(50);
+        thumbnail.setFitHeight(50);
+        thumbnail.setPreserveRatio(true);
+        thumbnail.setStyle("-fx-background-color: #666; -fx-background-radius: 4;");
+
+        if (item.hasFoto()) {
+            try {
+                File imgFile = new File(item.getFotoPath());
+                if (imgFile.exists()) {
+                    thumbnail.setImage(new Image(imgFile.toURI().toString()));
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading thumbnail: " + e.getMessage());
+            }
+        } else {
+            // Placeholder jika tidak ada gambar
+            Label noImg = new Label("📷");
+            noImg.setFont(Font.font("System", 20));
+            noImg.setTextFill(Color.web("#888"));
+            StackPane placeholder = new StackPane(noImg);
+            placeholder.setPrefSize(50, 50);
+            placeholder.setStyle("-fx-background-color: #666; -fx-background-radius: 4;");
+            row.getChildren().add(placeholder);
+        }
+
+        if (item.hasFoto()) {
+            row.getChildren().add(thumbnail);
+        }
+
+        Label lJudul = rowLabel(item.getJudul(), true); lJudul.setPrefWidth(150);
+        String isiShort = item.getIsi() != null && item.getIsi().length() > 60
+                ? item.getIsi().substring(0, 60) + " ..." : item.getIsi();
+        Label lIsi = rowLabel(isiShort != null ? isiShort : "-", false);
+        HBox.setHgrow(lIsi, Priority.ALWAYS);
+        Label lTgl = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(100);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditRenunganDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) { renunganDAO.delete(item.getIdRenungan()); refreshListRenungan(); }
+        });
+
+        row.getChildren().addAll(
+                lJudul, divider(), lIsi, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus
+        );
+        return row;
+    }
+
+    private void showEditRenunganDialog(Renungan item) {
         Dialog<Renungan> dlg = new Dialog<>();
         dlg.setTitle("Edit Renungan");
-
         TextField fJudul = new TextField(item.getJudul());
         TextArea  fIsi   = new TextArea(item.getIsi()); fIsi.setPrefRowCount(6); fIsi.setWrapText(true);
         DatePicker fTgl  = new DatePicker(item.getTanggal());
 
-        GridPane grid = formGrid();
-        grid.add(label("Judul*"), 0, 0);          grid.add(fJudul, 1, 0);
-        grid.add(label("Isi Renungan*"), 0, 1);   grid.add(fIsi, 1, 1);
-        grid.add(label("Tanggal*"), 0, 2);         grid.add(fTgl, 1, 2);
+        // Image handling
+        final File[] newImageFile = {null};
+        VBox imageBox = new VBox(8);
+        imageBox.setAlignment(Pos.CENTER);
+
+        ImageView currentImage = new ImageView();
+        currentImage.setFitWidth(150);
+        currentImage.setFitHeight(150);
+        currentImage.setPreserveRatio(true);
+
+        Label imageLabel = new Label("Gambar saat ini:");
+        imageLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
+
+        if (item.hasFoto()) {
+            try {
+                File imgFile = new File(item.getFotoPath());
+                if (imgFile.exists()) {
+                    currentImage.setImage(new Image(imgFile.toURI().toString()));
+                    imageBox.getChildren().addAll(imageLabel, currentImage);
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading image: " + e.getMessage());
+            }
+        }
+
+        Button btnChangeImage = new Button("Ganti Gambar");
+        btnChangeImage.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Pilih Gambar Baru");
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.gif")
+            );
+            File file = fileChooser.showOpenDialog(dlg.getOwner());
+            if (file != null && isImageFile(file)) {
+                newImageFile[0] = file;
+                try {
+                    currentImage.setImage(new Image(file.toURI().toString()));
+                    if (!imageBox.getChildren().contains(currentImage)) {
+                        imageBox.getChildren().addAll(imageLabel, currentImage);
+                    }
+                } catch (Exception ex) {
+                    System.err.println("Error loading new image: " + ex.getMessage());
+                }
+            }
+        });
+
+        imageBox.getChildren().add(btnChangeImage);
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Judul"), 0, 0);        grid.add(fJudul, 1, 0);
+        grid.add(dlgLabel("Isi Renungan"), 0, 1); grid.add(fIsi, 1, 1);
+        grid.add(dlgLabel("Tanggal"), 0, 2);      grid.add(fTgl, 1, 2);
+        grid.add(dlgLabel("Foto"), 0, 3);         grid.add(imageBox, 1, 3);
 
         dlg.getDialogPane().setContent(grid);
         dlg.getDialogPane().setPrefWidth(480);
@@ -381,98 +798,164 @@ public class MajelisView extends VBox {
                 item.setJudul(fJudul.getText().trim());
                 item.setIsi(fIsi.getText().trim());
                 item.setTanggal(fTgl.getValue());
+
+                // Simpan gambar baru jika ada
+                if (newImageFile[0] != null) {
+                    String savedPath = saveImage(newImageFile[0], "renungan");
+                    if (savedPath != null) {
+                        item.setFotoPath(savedPath);
+                    }
+                }
                 return item;
             }
             return null;
         });
-        dlg.showAndWait().ifPresent(r -> { renunganDAO.update(r); loadRenungan(); });
-    }
-
-    private void loadRenungan() {
-        if (renunganData == null) return;
-        renunganData.setAll(renunganDAO.getAll());
+        dlg.showAndWait().ifPresent(r -> { renunganDAO.update(r); refreshListRenungan(); });
     }
 
     // ════════════════════════════════════════════════════════════════════
     //  HELPERS
     // ════════════════════════════════════════════════════════════════════
 
-    @SuppressWarnings("unchecked")
-    private <T> TableColumn<T, Void> buildActionColumn(
-            java.util.function.Consumer<Object> onEdit,
-            java.util.function.Consumer<Object> onDelete) {
-
-        TableColumn<T, Void> col = new TableColumn<>("Aksi");
-        col.setPrefWidth(130);
-        col.setCellFactory(tc -> new TableCell<>() {
-            private final Button btnEdit  = new Button("✏️ Edit");
-            private final Button btnHapus = new Button("🗑️ Hapus");
-            private final HBox box = new HBox(6, btnEdit, btnHapus);
-            {
-                box.setAlignment(Pos.CENTER);
-                btnEdit.setStyle("-fx-background-color: #5B8DEF; -fx-text-fill: white; " +
-                        "-fx-background-radius: 6; -fx-font-size: 11; -fx-cursor: hand;");
-                btnHapus.setStyle("-fx-background-color: #E74C3C; -fx-text-fill: white; " +
-                        "-fx-background-radius: 6; -fx-font-size: 11; -fx-cursor: hand;");
-                btnEdit.setOnAction(e -> onEdit.accept(getTableView().getItems().get(getIndex())));
-                btnHapus.setOnAction(e -> {
-                    Object item = getTableView().getItems().get(getIndex());
-                    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-                    confirm.setTitle("Konfirmasi Hapus");
-                    confirm.setContentText("Yakin ingin menghapus data ini?");
-                    confirm.showAndWait().filter(r -> r == ButtonType.OK)
-                            .ifPresent(r -> onDelete.accept(item));
-                });
-            }
-            @Override protected void updateItem(Void v, boolean empty) {
-                super.updateItem(v, empty);
-                setGraphic(empty ? null : box);
-            }
-        });
-        return col;
+    private boolean confirmDelete() {
+        Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Hapus data ini?", ButtonType.OK, ButtonType.CANCEL);
+        a.setTitle("Konfirmasi Hapus"); a.setHeaderText(null);
+        return a.showAndWait().filter(r -> r == ButtonType.OK).isPresent();
     }
 
-    private GridPane formGrid() {
-        GridPane g = new GridPane();
-        g.setHgap(12); g.setVgap(10);
-        ColumnConstraints c0 = new ColumnConstraints(130);
-        ColumnConstraints c1 = new ColumnConstraints();
-        c1.setHgrow(Priority.ALWAYS);
-        g.getColumnConstraints().addAll(c0, c1);
-        return g;
+    private Text sectionTitle(String text) {
+        Text t = new Text(text);
+        t.setFill(Color.WHITE);
+        t.setFont(Font.font("System", FontWeight.BOLD, 18));
+        return t;
     }
 
-    private Label label(String text) {
-        Label lbl = new Label(text);
-        lbl.setFont(Font.font("System", FontWeight.BOLD, 12));
-        lbl.setTextFill(Color.web("#4A5568"));
-        return lbl;
+    private Label cardLabel(String text) {
+        Label l = new Label(text);
+        l.setTextFill(Color.web("#CCCCCC"));
+        l.setFont(Font.font("System", 12));
+        return l;
+    }
+
+    private Label rowLabel(String text, boolean bold) {
+        Label l = new Label(text);
+        l.setTextFill(Color.WHITE);
+        l.setFont(Font.font("System", bold ? FontWeight.BOLD : FontWeight.NORMAL, 13));
+        l.setPadding(new Insets(0, 8, 0, 8));
+        return l;
+    }
+
+    private TextField styledField(String prompt) {
+        TextField f = new TextField();
+        f.setPromptText(prompt);
+        f.setStyle("-fx-background-color: " + INPUT + "; -fx-text-fill: white; " +
+                "-fx-prompt-text-fill: rgba(255,255,255,0.4); -fx-background-radius: 8; " +
+                "-fx-border-width: 0; -fx-padding: 8 12 8 12; -fx-font-size: 13;");
+        f.setMaxWidth(Double.MAX_VALUE);
+        return f;
+    }
+
+    private TextArea styledTextArea(String prompt) {
+        TextArea ta = new TextArea();
+        ta.setPromptText(prompt);
+        ta.setPrefRowCount(4);
+        ta.setWrapText(true);
+        ta.setStyle("-fx-background-color: " + INPUT + "; -fx-text-fill: white; " +
+                "-fx-prompt-text-fill: rgba(255,255,255,0.4); -fx-background-radius: 8; " +
+                "-fx-border-width: 0; -fx-padding: 8 12 8 12; -fx-font-size: 13; -fx-control-inner-background: " + INPUT + ";");
+        return ta;
+    }
+
+    private TextField styledSmallField(String prompt) {
+        TextField f = styledField(prompt);
+        f.setPrefWidth(52); f.setMaxWidth(52);
+        f.setAlignment(Pos.CENTER);
+        return f;
     }
 
     private Button primaryButton(String text) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: linear-gradient(to right, #5B8DEF, #7C5CBF); " +
-                     "-fx-text-fill: white; " +
-                     "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                     "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;");
-        btn.setOnMouseEntered(e -> btn.setStyle(
-                "-fx-background-color: linear-gradient(to right, #3D6FD4, #6A4AAD); " +
-                "-fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;"));
-        btn.setOnMouseExited(e -> btn.setStyle(
-                "-fx-background-color: linear-gradient(to right, #5B8DEF, #7C5CBF); " +
-                "-fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-font-weight: bold; " +
-                "-fx-cursor: hand; -fx-padding: 10 20 10 20; -fx-font-size: 13;"));
+        btn.setFont(Font.font("System", FontWeight.BOLD, 13));
+        btn.setPadding(new Insets(10, 40, 10, 40));
+        String style = "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
+        String hover = "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
+        btn.setStyle(style);
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(style));
         return btn;
     }
 
-    private String redFieldStyle() {
-        return "-fx-border-color: #E74C3C; -fx-border-radius: 6; -fx-background-radius: 6;";
+    private Button actionBtn(String text, String color) {
+        Button btn = new Button(text);
+        btn.setFont(Font.font("System", 12));
+        btn.setPadding(new Insets(5, 12, 5, 12));
+        btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;");
+        return btn;
     }
 
-    private String normalFieldStyle() {
-        return "-fx-border-color: #CBD5E0; -fx-border-radius: 6; -fx-background-radius: 6;";
+    private Region divider() {
+        Region r = new Region();
+        r.setPrefWidth(1); r.setPrefHeight(20);
+        r.setStyle("-fx-background-color: " + DIVIDER + ";");
+        HBox.setMargin(r, new Insets(0, 4, 0, 4));
+        return r;
+    }
+
+    private Region spacer(double w) {
+        Region r = new Region(); r.setPrefWidth(w); return r;
+    }
+
+    private Label dlgLabel(String text) {
+        Label l = new Label(text);
+        l.setFont(Font.font("System", FontWeight.BOLD, 12));
+        l.setTextFill(Color.web("#4A5568"));
+        return l;
+    }
+
+    private GridPane dialogGrid() {
+        GridPane g = new GridPane();
+        g.setHgap(12); g.setVgap(10);
+        ColumnConstraints c0 = new ColumnConstraints(130);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setHgrow(Priority.ALWAYS);
+        g.getColumnConstraints().addAll(c0, c1);
+        return g;
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  IMAGE HANDLING
+    // ════════════════════════════════════════════════════════════════════
+
+    private boolean isImageFile(File file) {
+        if (file == null || !file.exists()) return false;
+        String name = file.getName().toLowerCase();
+        return name.endsWith(".png") || name.endsWith(".jpg") ||
+               name.endsWith(".jpeg") || name.endsWith(".gif");
+    }
+
+    private String saveImage(File sourceFile, String category) {
+        try {
+            // Buat folder jika belum ada
+            Path uploadDir = Paths.get("uploads", category);
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+
+            // Generate nama file unik
+            String extension = sourceFile.getName().substring(sourceFile.getName().lastIndexOf("."));
+            String fileName = UUID.randomUUID().toString() + extension;
+            Path targetPath = uploadDir.resolve(fileName);
+
+            // Copy file
+            Files.copy(sourceFile.toPath(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+
+            // Return relative path
+            return "uploads/" + category + "/" + fileName;
+        } catch (IOException e) {
+            System.err.println("Error saving image: " + e.getMessage());
+            return null;
+        }
     }
 }

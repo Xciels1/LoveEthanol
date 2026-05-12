@@ -1,6 +1,8 @@
 package com.chataja.ui;
 
 import com.chataja.chatbot.ChatBot;
+import com.chataja.model.Pengumuman;
+import com.chataja.model.Renungan;
 import javafx.animation.FadeTransition;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Insets;
@@ -16,8 +18,10 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.*;
 import javafx.util.Duration;
 
+import java.io.File;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 /**
  * Panel antarmuka chatbot utama.
@@ -163,23 +167,71 @@ public class ChatView extends VBox {
                 new javafx.animation.PauseTransition(Duration.millis(700));
         delay.setOnFinished(e -> {
             messageContainer.getChildren().remove(typingIndicator);
-            String response = chatBot.prosesPertanyaan(trimmed);
-            addBotMessage(response);
+
+            // Cek apakah pertanyaan tentang renungan atau pengumuman
+            String lower = trimmed.toLowerCase();
+            if (containsKeyword(lower, "renungan")) {
+                handleRenunganResponse();
+            } else if (containsKeyword(lower, "pengumuman", "info", "berita")) {
+                handlePengumumanResponse();
+            } else {
+                String response = chatBot.prosesPertanyaan(trimmed);
+                addBotMessage(response);
+            }
         });
         delay.play();
     }
 
+    private boolean containsKeyword(String text, String... keywords) {
+        for (String kw : keywords) {
+            if (text.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    private void handleRenunganResponse() {
+        Renungan r = chatBot.getRenunganHariIni();
+        if (r != null) {
+            String text = r.tampilkan();
+            String imagePath = r.hasFoto() ? r.getFotoPath() : null;
+            addBotMessage(text, imagePath);
+        } else {
+            addBotMessage("📖 Renungan harian sedang disiapkan.\nSilakan cek kembali nanti.");
+        }
+    }
+
+    private void handlePengumumanResponse() {
+        List<Pengumuman> list = chatBot.getLatestPengumuman(5);
+
+        if (list.isEmpty()) {
+            addBotMessage("📢 Belum ada pengumuman saat ini.");
+            return;
+        }
+
+        // Tampilkan header
+        StringBuilder sb = new StringBuilder();
+        String line = ("─".repeat(35));
+        sb.append("📢 PENGUMUMAN GEREJA\n");
+        sb.append("─".repeat(35)).append("\n\n");
+
+        // Tampilkan setiap pengumuman dengan gambar jika ada
+        for (int i = 0; i < list.size(); i++) {
+            Pengumuman p = list.get(i);
+            String imagePath = p.hasFoto() ? p.getFotoPath() : null;
+
+            String text = p.tampilkan();
+
+            if (i == 0) {
+                addBotMessage(sb.toString() + text, imagePath);
+            } else {
+                addBotMessage(line+"\n" + text, imagePath);
+            }
+        }
+    }
+
     private void showQuickMenu() {
         ContextMenu menu = new ContextMenu();
-//      String[] items = {"Jadwal ibadah", "Lokasi gereja", "Renungan hari ini", "Pengumuman gereja"};
-        String[] items = {
-                "Jadwal ibadah",
-                "Lokasi gereja",
-                "Renungan hari ini",
-                "Ayat Alkitab acak",
-                "Ayat alkitab tentang kekuatan",
-                "Bantuan"
-        };
+        String[] items = {"Jadwal ibadah", "Lokasi gereja", "Renungan hari ini", "Pengumuman gereja"};
         for (String item : items) {
             MenuItem mi = new MenuItem(item);
             mi.setOnAction(e -> sendMessage(item));
@@ -222,10 +274,18 @@ public class ChatView extends VBox {
     }
 
     public void addBotMessage(String text) {
+        addBotMessage(text, null);
+    }
+
+    public void addBotMessage(String text, String imagePath) {
         HBox wrapper = new HBox(12);
         wrapper.setAlignment(Pos.TOP_LEFT);
         wrapper.setPadding(new Insets(0, 80, 0, 0));
 
+        VBox contentBox = new VBox(8);
+        contentBox.setMaxWidth(500);
+
+        // Text label
         Label lbl = new Label(text);
         lbl.setWrapText(true);
         lbl.setFont(Font.font("System", 13));
@@ -239,7 +299,32 @@ public class ChatView extends VBox {
         shadow.setRadius(8); shadow.setOffsetY(2);
         lbl.setEffect(shadow);
 
-        VBox bubble = new VBox(4, lbl);
+        contentBox.getChildren().add(lbl);
+
+        // Image jika ada
+        if (imagePath != null && !imagePath.isBlank()) {
+            try {
+                File imgFile = new File(imagePath);
+                if (imgFile.exists()) {
+                    ImageView imageView = new ImageView(new Image(imgFile.toURI().toString()));
+                    imageView.setFitWidth(300);
+                    imageView.setPreserveRatio(true);
+                    imageView.setSmooth(true);
+                    imageView.setStyle("-fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 2);");
+
+                    // Container untuk gambar dengan rounded corners
+                    StackPane imageContainer = new StackPane(imageView);
+                    imageContainer.setStyle("-fx-background-color: " + BOT_BG + "; -fx-background-radius: 8; -fx-padding: 4;");
+                    imageContainer.setEffect(shadow);
+
+                    contentBox.getChildren().add(imageContainer);
+                }
+            } catch (Exception e) {
+                System.err.println("Error loading image in chat: " + e.getMessage());
+            }
+        }
+
+        VBox bubble = new VBox(4, contentBox);
         Label ts = new Label("ChatAja  " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
         ts.setFont(Font.font("System", 10));
         ts.setTextFill(Color.web("#AAAAAA"));
@@ -275,25 +360,14 @@ public class ChatView extends VBox {
         return wrapper;
     }
 
-//    private void addWelcomeMessage() {
-//        addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
-//                "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
-//                "• \"Jadwal ibadah\"\n" +
-//                "• \"Lokasi gereja\"\n" +
-//                "• \"Renungan hari ini\"\n" +
-//                "• \"Pengumuman gereja\"\n\n" +
-//                "Ketik \"bantuan\" untuk melihat semua fitur yang tersedia.");
-//    }
     private void addWelcomeMessage() {
-    addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
-            "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
-            "• \"Jadwal ibadah\"\n" +
-            "• \"Lokasi gereja\"\n" +
-            "• \"Renungan hari ini\"\n" +
-            "• \"Pengumuman gereja\"\n" +
-            "• \"Yohanes 3:16\" → langsung cari ayat Alkitab\n" +
-            "• \"Ayat tentang kasih / iman / kekuatan\"\n\n" +
-            "Ketik \"bantuan\" untuk melihat semua fitur. 😊");
+        addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
+                "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
+                "• \"Jadwal ibadah\"\n" +
+                "• \"Lokasi gereja\"\n" +
+                "• \"Renungan hari ini\"\n" +
+                "• \"Pengumuman gereja\"\n\n" +
+                "Ketik \"bantuan\" untuk melihat semua fitur yang tersedia.");
     }
 
     public void clearChat() {

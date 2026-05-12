@@ -53,7 +53,7 @@ public class RenunganDAO {
     }
 
     public boolean insert(Renungan r) {
-        String sql = "INSERT INTO renungan (id_renungan,judul,isi,tanggal,id_user) VALUES (?,?,?,?,?)";
+        String sql = "INSERT INTO renungan (id_renungan,judul,isi,tanggal,id_user,foto) VALUES (?,?,?,?,?,?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, generateId());
@@ -61,6 +61,7 @@ public class RenunganDAO {
             ps.setString(3, r.getIsi());
             ps.setString(4, r.getTanggal() != null ? r.getTanggal().toString() : null);
             ps.setString(5, r.getIdUser());
+            ps.setString(6, r.getFotoPath());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[RenunganDAO] insert error: " + e.getMessage());
@@ -69,13 +70,14 @@ public class RenunganDAO {
     }
 
     public boolean update(Renungan r) {
-        String sql = "UPDATE renungan SET judul=?,isi=?,tanggal=? WHERE id_renungan=?";
+        String sql = "UPDATE renungan SET judul=?,isi=?,tanggal=?,foto=? WHERE id_renungan=?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, r.getJudul());
             ps.setString(2, r.getIsi());
             ps.setString(3, r.getTanggal() != null ? r.getTanggal().toString() : null);
-            ps.setString(4, r.getIdRenungan());
+            ps.setString(4, r.getFotoPath());
+            ps.setString(5, r.getIdRenungan());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[RenunganDAO] update error: " + e.getMessage());
@@ -102,6 +104,7 @@ public class RenunganDAO {
         String tgl = rs.getString("tanggal");
         if (tgl != null) r.setTanggal(LocalDate.parse(tgl));
         r.setIdUser(rs.getString("id_user"));
+        r.setFotoPath(rs.getString("foto"));
         return r;
     }
 
