@@ -11,6 +11,7 @@ import java.util.List;
 
 /**
  * Data Access Object untuk tabel jadwal_ibadah.
+ * Update: support kolom nama_pendeta.
  */
 public class JadwalIbadahDAO {
 
@@ -33,7 +34,7 @@ public class JadwalIbadahDAO {
         return list;
     }
 
-    /** Ambil jadwal ibadah untuk tanggal terdekat (minggu ini) */
+    /** Ambil jadwal ibadah yang akan datang (untuk chatbot) */
     public List<JadwalIbadah> getUpcoming() {
         List<JadwalIbadah> list = new ArrayList<>();
         String today = LocalDate.now().toString();
@@ -57,15 +58,20 @@ public class JadwalIbadahDAO {
     }
 
     public boolean insert(JadwalIbadah j) {
-        String sql = "INSERT INTO jadwal_ibadah (id_jadwal,nama_ibadah,tanggal,waktu,id_lokasi,id_user) VALUES (?,?,?,?,?,?)";
+        String sql = """
+            INSERT INTO jadwal_ibadah
+                (id_jadwal, nama_ibadah, tanggal, waktu, id_lokasi, id_user, nama_pendeta)
+            VALUES (?,?,?,?,?,?,?)
+        """;
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, generateId());
             ps.setString(2, j.getNamaIbadah());
             ps.setString(3, j.getTanggal() != null ? j.getTanggal().toString() : null);
-            ps.setString(4, j.getWaktu() != null ? j.getWaktu().toString() : null);
+            ps.setString(4, j.getWaktu()   != null ? j.getWaktu().toString()   : null);
             ps.setString(5, j.getIdLokasi());
             ps.setString(6, j.getIdUser());
+            ps.setString(7, j.getNamaPendeta());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[JadwalIbadahDAO] insert error: " + e.getMessage());
@@ -74,14 +80,19 @@ public class JadwalIbadahDAO {
     }
 
     public boolean update(JadwalIbadah j) {
-        String sql = "UPDATE jadwal_ibadah SET nama_ibadah=?,tanggal=?,waktu=?,id_lokasi=? WHERE id_jadwal=?";
+        String sql = """
+            UPDATE jadwal_ibadah
+            SET nama_ibadah=?, tanggal=?, waktu=?, id_lokasi=?, nama_pendeta=?
+            WHERE id_jadwal=?
+        """;
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, j.getNamaIbadah());
             ps.setString(2, j.getTanggal() != null ? j.getTanggal().toString() : null);
-            ps.setString(3, j.getWaktu() != null ? j.getWaktu().toString() : null);
+            ps.setString(3, j.getWaktu()   != null ? j.getWaktu().toString()   : null);
             ps.setString(4, j.getIdLokasi());
-            ps.setString(5, j.getIdJadwal());
+            ps.setString(5, j.getNamaPendeta());
+            ps.setString(6, j.getIdJadwal());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             System.err.println("[JadwalIbadahDAO] update error: " + e.getMessage());
@@ -91,7 +102,8 @@ public class JadwalIbadahDAO {
 
     public boolean delete(String id) {
         try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement("DELETE FROM jadwal_ibadah WHERE id_jadwal=?")) {
+             PreparedStatement ps = conn.prepareStatement(
+                     "DELETE FROM jadwal_ibadah WHERE id_jadwal=?")) {
             ps.setString(1, id);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -110,7 +122,8 @@ public class JadwalIbadahDAO {
         if (wkt != null) j.setWaktu(LocalTime.parse(wkt.length() == 5 ? wkt : wkt.substring(0, 5)));
         j.setIdLokasi(rs.getString("id_lokasi"));
         j.setIdUser(rs.getString("id_user"));
-        try { j.setNamaLokasi(rs.getString("nama_tempat")); } catch (Exception ignored) {}
+        try { j.setNamaLokasi(rs.getString("nama_tempat")); }  catch (Exception ignored) {}
+        try { j.setNamaPendeta(rs.getString("nama_pendeta")); } catch (Exception ignored) {}
         return j;
     }
 

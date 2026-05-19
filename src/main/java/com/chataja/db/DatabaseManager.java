@@ -5,29 +5,19 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-/**
- * Mengelola koneksi SQLite dan inisialisasi skema database.
- * Database disimpan di file chataja.db pada direktori kerja aplikasi.
- */
 public class DatabaseManager {
 
     private static final String DB_URL = "jdbc:sqlite:chataja.db";
     private static Connection connection;
 
-    /** Mendapatkan koneksi tunggal (Singleton) */
     public static Connection getConnection() throws SQLException {
         if (connection == null || connection.isClosed()) {
             connection = DriverManager.getConnection(DB_URL);
-            // Aktifkan foreign key support SQLite
             connection.createStatement().execute("PRAGMA foreign_keys = ON;");
         }
         return connection;
     }
 
-    /**
-     * Inisialisasi semua tabel database dan data awal (seed).
-     * Dipanggil sekali saat aplikasi pertama kali dijalankan.
-     */
     public static void initialize() {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
@@ -55,7 +45,7 @@ public class DatabaseManager {
                 );
             """);
 
-            // ── Tabel jadwal_ibadah ───────────────────────────────────────
+            // ── Tabel jadwal_ibadah (dengan nama_pendeta) ─────────────────
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS jadwal_ibadah (
                     id_jadwal    TEXT PRIMARY KEY,
@@ -64,6 +54,7 @@ public class DatabaseManager {
                     waktu        TIME NOT NULL,
                     id_lokasi    TEXT,
                     id_user      TEXT,
+                    nama_pendeta TEXT,
                     FOREIGN KEY (id_lokasi) REFERENCES lokasi_gereja(id_lokasi),
                     FOREIGN KEY (id_user)   REFERENCES users(id_user)
                 );
@@ -106,18 +97,18 @@ public class DatabaseManager {
                 );
             """);
 
-            // Migrasi: tambah kolom foto jika belum ada (untuk DB lama)
-            try {
-                stmt.execute("ALTER TABLE pengumuman ADD COLUMN foto TEXT;");
-            } catch (SQLException ignored) {
-                // Kolom sudah ada — abaikan error
-            }
+            // ── Migrasi kolom baru (aman untuk DB lama) ───────────────────
+            try { stmt.execute("ALTER TABLE pengumuman ADD COLUMN foto TEXT;"); }
+            catch (SQLException ignored) {}
 
-                // Buat folder uploads jika belum ada
-                new java.io.File("uploads/pengumuman").mkdirs();
+            // Migrasi: tambah nama_pendeta jika DB sudah ada sebelumnya
+            try { stmt.execute("ALTER TABLE jadwal_ibadah ADD COLUMN nama_pendeta TEXT;"); }
+            catch (SQLException ignored) {}
 
+            // Buat folder uploads jika belum ada
+            new java.io.File("uploads/pengumuman").mkdirs();
 
-            // ── Seed: akun default ───────────────────────────────────────
+            // ── Seed: akun default ────────────────────────────────────────
             stmt.execute("""
                 INSERT OR IGNORE INTO users (id_user, nama, username, password, role)
                 VALUES ('USR00001', 'Administrator', 'admin', 'admin123', 'admin');
@@ -133,14 +124,12 @@ public class DatabaseManager {
 
             System.out.println("[DB] Database berhasil diinisialisasi.");
 
-
         } catch (SQLException e) {
             System.err.println("[DB] Gagal inisialisasi database: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    /** Menutup koneksi database */
     public static void close() {
         try {
             if (connection != null && !connection.isClosed()) {

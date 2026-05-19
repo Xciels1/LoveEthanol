@@ -37,15 +37,6 @@ public class ChatBot {
     public User getLoggedUser()          { return loggedUser; }
     public String getNamaBot()           { return namaBot; }
 
-    // Method untuk mendapatkan data dengan gambar
-    public Renungan getRenunganHariIni() {
-        return renunganDAO.getHariIni();
-    }
-
-    public List<Pengumuman> getLatestPengumuman(int limit) {
-        return pengumumanDAO.getLatest(limit);
-    }
-
     // ────────────────────────────────────────────────────────────────────
     //  PUBLIC INTERFACE
     // ────────────────────────────────────────────────────────────────────
@@ -274,6 +265,22 @@ public class ChatBot {
     // ────────────────────────────────────────────────────────────────────
     //  RESPONSE BUILDERS — UC-1 s.d. UC-8
     // ────────────────────────────────────────────────────────────────────
+
+    // ── Public accessor methods untuk ChatView ──────────────────────────
+
+    /**
+     * Digunakan oleh ChatView untuk menampilkan renungan di sidebar/panel.
+     */
+    public Renungan getRenunganHariIni() {
+        return renunganDAO.getHariIni();
+    }
+
+    /**
+     * Digunakan oleh ChatView untuk menampilkan pengumuman terbaru.
+     */
+    public List<Pengumuman> getLatestPengumuman(int limit) {
+        return pengumumanDAO.getLatest(limit);
+    }
 
     private String responJadwalIbadah() {
         List<JadwalIbadah> list = jadwalIbadahDAO.getUpcoming();

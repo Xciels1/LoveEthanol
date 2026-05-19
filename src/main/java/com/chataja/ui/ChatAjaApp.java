@@ -16,7 +16,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.shape.Circle;
-import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -32,40 +31,40 @@ public class ChatAjaApp extends Application {
     private VBox sidebar;
     private StackPane contentArea;
 
-    private ChatView chatView;
-    private AdminView adminView;
+    private ChatView    chatView;
+    private AdminView   adminView;
     private MajelisView majelisView;
 
     private Button btnNewChat;
     private Button btnLogin;
     private Button btnNavJadwalIbadah;
     private Button btnNavJadwalTugas;
+    private Button btnNavKelolAkun;      // ← BARU
     private Button btnNavPengumuman;
     private Button btnNavRenungan;
-    private VBox navSection;
+    private VBox   navSection;
     private Button activeNavBtn = null;
 
-    // ── Palette (Figma Design) ────────────────────────────────────────
-    public static final String COLOR_SIDEBAR      = "#6B9EC4";
-    public static final String COLOR_SIDEBAR_BTN  = "rgba(255,255,255,0.18)";
+    // ── Palette ───────────────────────────────────────────────────────
+    public static final String COLOR_SIDEBAR         = "#6B9EC4";
+    public static final String COLOR_SIDEBAR_BTN     = "rgba(255,255,255,0.18)";
     public static final String COLOR_SIDEBAR_BTN_HEX = "#8AB8D4";
-    public static final String COLOR_BG           = "#3B3B3B";
-    public static final String COLOR_CARD         = "#484848";
-    public static final String COLOR_CARD2        = "#525252";
-    public static final String COLOR_INPUT        = "#5C5C5C";
-    public static final String COLOR_HEADER_BG    = "#424242";
-    public static final String COLOR_ACCENT       = "#5B8DEF";
-    public static final String COLOR_ACCENT_DARK  = "#3D6FD4";
-    public static final String COLOR_WHITE        = "#FFFFFF";
-    public static final String COLOR_TEXT         = "#FFFFFF";
-    public static final String COLOR_TEXT_MUTED   = "#AAAAAA";
-    public static final String COLOR_DANGER       = "#E74C3C";
-    public static final String COLOR_SUCCESS      = "#27AE60";
-    public static final String COLOR_DIVIDER      = "#666666";
-    // Keep for backward compat
-    public static final String COLOR_TEXT_DARK    = "#FFFFFF";
-    public static final String COLOR_TEXT_LIGHT   = "#FFFFFF";
-    public static final String COLOR_BORDER       = "#5C5C5C";
+    public static final String COLOR_BG              = "#3B3B3B";
+    public static final String COLOR_CARD            = "#484848";
+    public static final String COLOR_CARD2           = "#525252";
+    public static final String COLOR_INPUT           = "#5C5C5C";
+    public static final String COLOR_HEADER_BG       = "#424242";
+    public static final String COLOR_ACCENT          = "#5B8DEF";
+    public static final String COLOR_ACCENT_DARK     = "#3D6FD4";
+    public static final String COLOR_WHITE           = "#FFFFFF";
+    public static final String COLOR_TEXT            = "#FFFFFF";
+    public static final String COLOR_TEXT_MUTED      = "#AAAAAA";
+    public static final String COLOR_DANGER          = "#E74C3C";
+    public static final String COLOR_SUCCESS         = "#27AE60";
+    public static final String COLOR_DIVIDER         = "#666666";
+    public static final String COLOR_TEXT_DARK       = "#FFFFFF";
+    public static final String COLOR_TEXT_LIGHT      = "#FFFFFF";
+    public static final String COLOR_BORDER          = "#5C5C5C";
 
     @Override
     public void start(Stage primaryStage) {
@@ -112,12 +111,14 @@ public class ChatAjaApp extends Application {
         stage.setOnCloseRequest(e -> Platform.exit());
     }
 
+    // ── Sidebar ───────────────────────────────────────────────────────
+
     private VBox buildSidebar() {
         VBox sb = new VBox(0);
         sb.setPrefWidth(220);
         sb.setStyle("-fx-background-color: " + COLOR_SIDEBAR + ";");
 
-        // ── User info area (hidden until login) ──
+        // ── User info (hidden until login) ──
         VBox userInfoBox = new VBox(6);
         userInfoBox.setPadding(new Insets(18, 16, 12, 16));
         userInfoBox.setAlignment(Pos.CENTER_LEFT);
@@ -125,7 +126,6 @@ public class ChatAjaApp extends Application {
         userInfoBox.setManaged(false);
         userInfoBox.setId("userInfoBox");
 
-        // Spacer below user info
         Region userDivider = new Region();
         userDivider.setPrefHeight(1);
         userDivider.setStyle("-fx-background-color: rgba(255,255,255,0.25);");
@@ -135,19 +135,13 @@ public class ChatAjaApp extends Application {
         userDivBox.setManaged(false);
         userDivBox.setId("userDivBox");
 
-        // ── Logo area ──
+        // ── Logo ──
         VBox logoBox = new VBox(0);
         logoBox.setPadding(new Insets(20, 16, 16, 16));
         logoBox.setAlignment(Pos.CENTER_LEFT);
-
-        // Logo: Chat bubble icon + text
         HBox logoRow = new HBox(10);
         logoRow.setAlignment(Pos.CENTER_LEFT);
-
-        // Chat bubble icon
-        ImageView logoIcon = buildLogoIcon();
-
-        logoRow.getChildren().add(logoIcon);
+        logoRow.getChildren().add(buildLogoIcon());
         logoBox.getChildren().add(logoRow);
 
         // ── Top divider ──
@@ -167,22 +161,36 @@ public class ChatAjaApp extends Application {
         VBox newChatBox = new VBox(btnNewChat);
         newChatBox.setPadding(new Insets(14, 10, 6, 10));
 
-        // ── Navigation section ──
+        // ── Nav section (shown after login) ──
         navSection = new VBox(6);
         navSection.setPadding(new Insets(6, 10, 6, 10));
         navSection.setVisible(false);
         navSection.setManaged(false);
 
+        // Nav buttons
         btnNavJadwalIbadah = sidebarButton("Jadwal Ibadah", false);
         btnNavJadwalTugas  = sidebarButton("Jadwal Tugas",  false);
+        btnNavKelolAkun    = sidebarButton("Kelola Akun",   false);  // ← BARU
         btnNavPengumuman   = sidebarButton("Pengumuman",    false);
         btnNavRenungan     = sidebarButton("Renungan",      false);
 
-        btnNavJadwalIbadah.setOnAction(e -> { adminView.showJadwalIbadah(); showAdminView(); setActiveNav(btnNavJadwalIbadah); });
-        btnNavJadwalTugas .setOnAction(e -> { adminView.showJadwalTugas();  showAdminView(); setActiveNav(btnNavJadwalTugas); });
-        btnNavPengumuman  .setOnAction(e -> { majelisView.showPengumuman(); showMajelisView(); setActiveNav(btnNavPengumuman); });
-        btnNavRenungan    .setOnAction(e -> { majelisView.showRenungan();   showMajelisView(); setActiveNav(btnNavRenungan); });
+        btnNavJadwalIbadah.setOnAction(e -> {
+            adminView.showJadwalIbadah(); showAdminView(); setActiveNav(btnNavJadwalIbadah);
+        });
+        btnNavJadwalTugas.setOnAction(e -> {
+            adminView.showJadwalTugas(); showAdminView(); setActiveNav(btnNavJadwalTugas);
+        });
+        btnNavKelolAkun.setOnAction(e -> {                             // ← BARU
+            adminView.showKelolAkun(); showAdminView(); setActiveNav(btnNavKelolAkun);
+        });
+        btnNavPengumuman.setOnAction(e -> {
+            majelisView.showPengumuman(); showMajelisView(); setActiveNav(btnNavPengumuman);
+        });
+        btnNavRenungan.setOnAction(e -> {
+            majelisView.showRenungan(); showMajelisView(); setActiveNav(btnNavRenungan);
+        });
 
+        // Chat always shown after login
         Button btnNavChat = sidebarButton("Chat", false);
         btnNavChat.setOnAction(e -> { showChatView(); setActiveNav(btnNavChat); });
         navSection.getChildren().add(btnNavChat);
@@ -194,7 +202,6 @@ public class ChatAjaApp extends Application {
         // ── Bottom: Login / Logout ──
         VBox bottomArea = new VBox(8);
         bottomArea.setPadding(new Insets(8, 10, 18, 10));
-
         btnLogin = sidebarButton("Login", true);
         btnLogin.setOnAction(e -> handleLoginLogout());
         bottomArea.getChildren().add(btnLogin);
@@ -203,20 +210,16 @@ public class ChatAjaApp extends Application {
                 userInfoBox, userDivBox,
                 logoBox, div1Box,
                 newChatBox, navSection,
-                spacer, bottomArea
-        );
+                spacer, bottomArea);
         return sb;
     }
 
-    /** Logo icon dari file gambar */
     private ImageView buildLogoIcon() {
         try {
             Image img = new Image(getClass().getResourceAsStream("/logo.png"));
             ImageView iv = new ImageView(img);
-            iv.setFitWidth(48);
-            iv.setFitHeight(48);
-            iv.setPreserveRatio(true);
-            iv.setSmooth(true);
+            iv.setFitWidth(48); iv.setFitHeight(48);
+            iv.setPreserveRatio(true); iv.setSmooth(true);
             return iv;
         } catch (Exception e) {
             return new ImageView();
@@ -242,7 +245,6 @@ public class ChatAjaApp extends Application {
 
         btn.setStyle(normalStyle);
         btn.setUserData(new String[]{normalStyle, hoverStyle, activeStyle});
-
         btn.setOnMouseEntered(e -> { if (btn != activeNavBtn) btn.setStyle(hoverStyle); });
         btn.setOnMouseExited(e  -> { if (btn != activeNavBtn) btn.setStyle(normalStyle); });
         return btn;
@@ -251,42 +253,38 @@ public class ChatAjaApp extends Application {
     private void setActiveNav(Button btn) {
         if (activeNavBtn != null && activeNavBtn != btnLogin) {
             Object data = activeNavBtn.getUserData();
-            if (data instanceof String[]) {
-                activeNavBtn.setStyle(((String[]) data)[0]);
-            }
+            if (data instanceof String[]) activeNavBtn.setStyle(((String[]) data)[0]);
         }
         activeNavBtn = btn;
         if (btn != null && btn != btnLogin) {
             Object data = btn.getUserData();
-            if (data instanceof String[]) {
-                btn.setStyle(((String[]) data)[2]);
-            }
+            if (data instanceof String[]) btn.setStyle(((String[]) data)[2]);
         }
     }
 
-    // ── View switching ────────────────────────────────────────────────
+    // ── View switching ─────────────────────────────────────────────────
 
     private void showChatView() {
-        chatView.setVisible(true);    chatView.setManaged(true);
-        adminView.setVisible(false);  adminView.setManaged(false);
+        chatView   .setVisible(true);  chatView.setManaged(true);
+        adminView  .setVisible(false); adminView.setManaged(false);
         majelisView.setVisible(false); majelisView.setManaged(false);
     }
 
     private void showAdminView() {
         adminView.refresh();
-        chatView.setVisible(false);   chatView.setManaged(false);
-        adminView.setVisible(true);   adminView.setManaged(true);
+        chatView   .setVisible(false); chatView.setManaged(false);
+        adminView  .setVisible(true);  adminView.setManaged(true);
         majelisView.setVisible(false); majelisView.setManaged(false);
     }
 
     private void showMajelisView() {
         majelisView.refresh();
-        chatView.setVisible(false);    chatView.setManaged(false);
-        adminView.setVisible(false);   adminView.setManaged(false);
+        chatView   .setVisible(false); chatView.setManaged(false);
+        adminView  .setVisible(false); adminView.setManaged(false);
         majelisView.setVisible(true);  majelisView.setManaged(true);
     }
 
-    // ── Login / Logout ────────────────────────────────────────────────
+    // ── Login / Logout ─────────────────────────────────────────────────
 
     private void handleLoginLogout() {
         if (currentUser != null) {
@@ -310,7 +308,7 @@ public class ChatAjaApp extends Application {
     }
 
     private void updateAfterLogin(User user) {
-        // Update user info box
+        // ── User info box ──
         VBox userInfoBox = (VBox) sidebar.lookup("#userInfoBox");
         VBox userDivBox  = (VBox) sidebar.lookup("#userDivBox");
         if (userInfoBox != null) {
@@ -318,7 +316,6 @@ public class ChatAjaApp extends Application {
             HBox userRow = new HBox(12);
             userRow.setAlignment(Pos.CENTER_LEFT);
 
-            // Avatar circle with initial
             StackPane avatar = new StackPane();
             Circle avatarCircle = new Circle(20);
             avatarCircle.setFill(Color.web("#2B6CB0"));
@@ -343,15 +340,11 @@ public class ChatAjaApp extends Application {
 
             userRow.getChildren().addAll(avatar, userMeta);
             userInfoBox.getChildren().add(userRow);
-            userInfoBox.setVisible(true);
-            userInfoBox.setManaged(true);
+            userInfoBox.setVisible(true); userInfoBox.setManaged(true);
         }
-        if (userDivBox != null) {
-            userDivBox.setVisible(true);
-            userDivBox.setManaged(true);
-        }
+        if (userDivBox != null) { userDivBox.setVisible(true); userDivBox.setManaged(true); }
 
-        // Update Login button → Log Out
+        // ── Login → Log Out button ──
         btnLogin.setText("Log Out");
         btnLogin.setStyle("-fx-background-color: transparent; -fx-text-fill: #E74C3C; " +
                 "-fx-background-radius: 20; -fx-cursor: hand; -fx-border-width: 0; " +
@@ -363,25 +356,31 @@ public class ChatAjaApp extends Application {
                 "-fx-background-color: transparent; -fx-text-fill: #E74C3C; " +
                 "-fx-background-radius: 20; -fx-cursor: hand; -fx-border-width: 0; -fx-font-weight: bold;"));
 
-        navSection.setVisible(true);
-        navSection.setManaged(true);
+        // ── Nav section ──
+        navSection.setVisible(true); navSection.setManaged(true);
 
-        while (navSection.getChildren().size() > 1) {
-            navSection.getChildren().remove(1);
-        }
+        // Clear role-specific buttons (keep Chat at index 0)
+        while (navSection.getChildren().size() > 1) navSection.getChildren().remove(1);
 
         if ("admin".equals(user.getRole())) {
-            navSection.getChildren().addAll(btnNavJadwalIbadah, btnNavJadwalTugas);
+            // Admin: Jadwal Ibadah, Jadwal Tugas, Kelola Akun
+            navSection.getChildren().addAll(
+                    btnNavJadwalIbadah,
+                    btnNavJadwalTugas,
+                    btnNavKelolAkun       // ← BARU
+            );
             adminView.setUser(user);
+
         } else if ("majelis".equals(user.getRole())) {
+            // Majelis: Pengumuman, Renungan
             navSection.getChildren().addAll(btnNavPengumuman, btnNavRenungan);
             majelisView.setUser(user);
         }
 
         chatView.addBotMessage("✅ Selamat datang, " + user.getNama() + "!\n" +
-                "Anda login sebagai " + user.getRole().substring(0, 1).toUpperCase() +
-                user.getRole().substring(1) + ".\n\n" +
-                (user.getRole().equals("majelis")
+                "Anda login sebagai " +
+                user.getRole().substring(0, 1).toUpperCase() + user.getRole().substring(1) + ".\n\n" +
+                ("majelis".equals(user.getRole())
                         ? "Gunakan menu di sebelah kiri untuk mengelola Pengumuman & Renungan.\n" +
                           "Atau tanyakan jadwal tugas Anda langsung di sini!"
                         : "Gunakan menu di sebelah kiri untuk mengelola data sistem."));
@@ -403,8 +402,7 @@ public class ChatAjaApp extends Application {
                 "-fx-background-radius: 20; -fx-cursor: hand; -fx-border-width: 0; -fx-font-weight: bold;"));
         btnLogin.setOnMouseExited(e -> btnLogin.setStyle(normalStyle));
 
-        navSection.setVisible(false);
-        navSection.setManaged(false);
+        navSection.setVisible(false); navSection.setManaged(false);
         setActiveNav(null);
         showChatView();
         chatView.addBotMessage("👋 Anda telah logout. Sampai jumpa!");
@@ -429,10 +427,8 @@ public class ChatAjaApp extends Application {
         try {
             Image logoImage = new Image(getClass().getResourceAsStream("/logo.png"));
             logoImg.setImage(logoImage);
-            logoImg.setFitWidth(160);
-            logoImg.setFitHeight(80);
-            logoImg.setPreserveRatio(true);
-            logoImg.setSmooth(true);
+            logoImg.setFitWidth(160); logoImg.setFitHeight(80);
+            logoImg.setPreserveRatio(true); logoImg.setSmooth(true);
         } catch (Exception ignored) {}
 
         Text title = new Text("Selamat Datang di ChatAja!");
@@ -474,10 +470,9 @@ public class ChatAjaApp extends Application {
 
         ButtonType btnClose = new ButtonType("Mulai Chat ✨", ButtonBar.ButtonData.OK_DONE);
         alert.getButtonTypes().add(btnClose);
-
         alert.getDialogPane().lookupButton(btnClose).setStyle(
-                "-fx-background-color: " + COLOR_ACCENT + "; " +
-                "-fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 8; " +
+                "-fx-background-color: " + COLOR_ACCENT + "; -fx-text-fill: white; " +
+                "-fx-font-weight: bold; -fx-background-radius: 8; " +
                 "-fx-padding: 10 24 10 24; -fx-font-size: 13;");
 
         alert.showAndWait();
