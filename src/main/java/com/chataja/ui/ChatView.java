@@ -54,6 +54,7 @@ public class ChatView extends VBox {
 
         // ── Header ──────────────────────────────────────────────────────
         HBox header = buildPageHeader("Chat bot - jemaat");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
         // ── Message container ────────────────────────────────────────────
         messageContainer = new VBox(14);
@@ -62,7 +63,7 @@ public class ChatView extends VBox {
         scrollPane = new ScrollPane(messageContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; " +
-                            "-fx-border-width: 0;");
+                "-fx-border-width: 0;");
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
@@ -72,29 +73,30 @@ public class ChatView extends VBox {
 
         // ── Input area ───────────────────────────────────────────────────
         HBox inputArea = new HBox(10);
-        inputArea.setPadding(new Insets(12, 20, 14, 20));
+        inputArea.setPadding(new Insets(10, 16, 14, 16));
         inputArea.setAlignment(Pos.CENTER);
-        inputArea.setStyle("-fx-background-color: " + BG + ";");
+        inputArea.setStyle("-fx-background-color: " + BG + "; " +
+                "-fx-border-color: #555555; -fx-border-width: 1 0 0 0;");
 
         // Menu button
-        Button btnMenu = new Button("☰  Menu");
-        btnMenu.setFont(Font.font("System", FontWeight.BOLD, 12));
-        btnMenu.setPadding(new Insets(10, 14, 10, 14));
+        Button btnMenu = new Button("☰");
+        btnMenu.setFont(Font.font("System", FontWeight.BOLD, 14));
+        btnMenu.setPrefSize(42, 42);
         btnMenu.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 20; -fx-cursor: hand; -fx-border-width: 0;");
+                "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;");
         btnMenu.setOnAction(e -> showQuickMenu());
 
         // Input wrapper
         HBox inputWrapper = new HBox(0);
         inputWrapper.setAlignment(Pos.CENTER);
         inputWrapper.setStyle("-fx-background-color: " + INPUT_BG + "; " +
-                "-fx-background-radius: 20; -fx-border-width: 0;");
+                "-fx-background-radius: 10; -fx-border-width: 0;");
         HBox.setHgrow(inputWrapper, Priority.ALWAYS);
 
         inputField = new TextField();
-        inputField.setPromptText("Ajukan pertanyaan");
+        inputField.setPromptText("Ajukan pertanyaan...");
         inputField.setStyle("-fx-background-color: transparent; -fx-border-width: 0; " +
-                "-fx-padding: 10 14 10 16; -fx-font-size: 13; -fx-text-fill: white; " +
+                "-fx-padding: 11 14 11 16; -fx-font-size: 13; -fx-text-fill: white; " +
                 "-fx-prompt-text-fill: rgba(255,255,255,0.45);");
         inputField.setOnAction(e -> sendMessage(inputField.getText()));
         HBox.setHgrow(inputField, Priority.ALWAYS);
@@ -104,13 +106,13 @@ public class ChatView extends VBox {
         sendBtn.setFont(Font.font("System", FontWeight.BOLD, 15));
         sendBtn.setPrefSize(42, 42);
         sendBtn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;");
+                "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;");
         sendBtn.setOnMouseEntered(e -> sendBtn.setStyle(
                 "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
-                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;"));
+                        "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;"));
         sendBtn.setOnMouseExited(e -> sendBtn.setStyle(
                 "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 21; -fx-cursor: hand; -fx-border-width: 0;"));
+                        "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;"));
         sendBtn.setOnAction(e -> sendMessage(inputField.getText()));
 
         inputArea.getChildren().addAll(btnMenu, inputWrapper, sendBtn);
@@ -121,9 +123,9 @@ public class ChatView extends VBox {
     /** Page header with logo + title, dark rounded bar */
     static HBox buildPageHeader(String title) {
         HBox header = new HBox(14);
-        header.setPadding(new Insets(12, 20, 12, 20));
+        header.setPadding(new Insets(14, 20, 14, 20));
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-background-color: #424242; -fx-background-radius: 10;");
+        header.setStyle("-fx-background-color: #424242; -fx-background-radius: 12;");
         header.setMaxWidth(Double.MAX_VALUE);
 
         // Logo icon dari file gambar
@@ -131,24 +133,20 @@ public class ChatView extends VBox {
         try {
             Image img = new Image(ChatView.class.getResourceAsStream("/logo.png"));
             logoIcon.setImage(img);
-            logoIcon.setFitWidth(44);
-            logoIcon.setFitHeight(44);
+            logoIcon.setFitWidth(36);
+            logoIcon.setFitHeight(36);
             logoIcon.setPreserveRatio(true);
             logoIcon.setSmooth(true);
         } catch (Exception ignored) {}
 
-        // Title centered
-        Region leftSpacer = new Region();
-        HBox.setHgrow(leftSpacer, Priority.ALWAYS);
-
         Text titleText = new Text(title);
         titleText.setFill(Color.WHITE);
-        titleText.setFont(Font.font("System", FontWeight.BOLD, 18));
+        titleText.setFont(Font.font("System", FontWeight.BOLD, 17));
 
         Region rightSpacer = new Region();
         HBox.setHgrow(rightSpacer, Priority.ALWAYS);
 
-        header.getChildren().addAll(logoIcon, leftSpacer, titleText, rightSpacer);
+        header.getChildren().addAll(logoIcon, titleText, rightSpacer);
         return header;
     }
 

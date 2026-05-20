@@ -843,8 +843,8 @@ public class AdminView extends VBox {
     }
 
     private VBox buildScrollContent() {
-        VBox v = new VBox(16);
-        v.setPadding(new Insets(16));
+        VBox v = new VBox(20);
+        v.setPadding(new Insets(16, 16, 24, 16));
         v.setStyle("-fx-background-color:" + BG + ";");
         return v;
     }
@@ -854,6 +854,8 @@ public class AdminView extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10, 14, 10, 14));
         row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;");
+        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color:#5a5a5a; -fx-background-radius:8;"));
+        row.setOnMouseExited(e -> row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;"));
         return row;
     }
 
@@ -866,7 +868,7 @@ public class AdminView extends VBox {
     private Text sectionTitle(String text) {
         Text t = new Text(text);
         t.setFill(Color.WHITE);
-        t.setFont(Font.font("System", FontWeight.BOLD, 18));
+        t.setFont(Font.font("System", FontWeight.BOLD, 16));
         return t;
     }
 
@@ -890,7 +892,7 @@ public class AdminView extends VBox {
         f.setPromptText(prompt);
         f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
                 "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
-                "-fx-border-width:0; -fx-padding:8 12 8 12; -fx-font-size:13;");
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
         f.setMaxWidth(Double.MAX_VALUE);
         return f;
     }
@@ -900,7 +902,7 @@ public class AdminView extends VBox {
         f.setPromptText(prompt);
         f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
                 "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
-                "-fx-border-width:0; -fx-padding:8 12 8 12; -fx-font-size:13;");
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
         f.setMaxWidth(Double.MAX_VALUE);
         return f;
     }
@@ -915,11 +917,11 @@ public class AdminView extends VBox {
     private Button primaryButton(String text) {
         Button btn = new Button(text);
         btn.setFont(Font.font("System", FontWeight.BOLD, 13));
-        btn.setPadding(new Insets(10, 40, 10, 40));
+        btn.setPadding(new Insets(10, 36, 10, 36));
         String style = "-fx-background-color:" + ACCENT + "; -fx-text-fill:white; " +
-                "-fx-background-radius:22; -fx-cursor:hand; -fx-border-width:0;";
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
         String hover = "-fx-background-color:#3D6FD4; -fx-text-fill:white; " +
-                "-fx-background-radius:22; -fx-cursor:hand; -fx-border-width:0;";
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
         btn.setStyle(style);
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(style));
