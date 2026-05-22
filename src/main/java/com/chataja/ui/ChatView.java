@@ -282,22 +282,21 @@ public class ChatView extends VBox {
 
         VBox contentBox = new VBox(8);
         contentBox.setMaxWidth(500);
+        contentBox.setStyle("-fx-background-color: " + BOT_BG + "; " +
+                "-fx-background-radius: 4 18 18 18; -fx-padding: 8;");
 
         // Text label
         Label lbl = new Label(text);
         lbl.setWrapText(true);
         lbl.setFont(Font.font("System", 13));
         lbl.setTextFill(Color.WHITE);
-        lbl.setStyle("-fx-background-color: " + BOT_BG + "; " +
-                "-fx-background-radius: 4 18 18 18; -fx-padding: 10 16 10 16;");
+        lbl.setStyle("-fx-background-color: transparent; -fx-padding: 2 8 6 8;");
         lbl.setMaxWidth(500);
 
         DropShadow shadow = new DropShadow();
         shadow.setColor(Color.color(0, 0, 0, 0.2));
         shadow.setRadius(8); shadow.setOffsetY(2);
-        lbl.setEffect(shadow);
-
-        contentBox.getChildren().add(lbl);
+        contentBox.setEffect(shadow);
 
         // Image jika ada
         if (imagePath != null && !imagePath.isBlank()) {
@@ -310,10 +309,9 @@ public class ChatView extends VBox {
                     imageView.setSmooth(true);
                     imageView.setStyle("-fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 2);");
 
-                    // Container untuk gambar dengan rounded corners
+                    // Container gambar menyatu dalam bubble yang sama
                     StackPane imageContainer = new StackPane(imageView);
-                    imageContainer.setStyle("-fx-background-color: " + BOT_BG + "; -fx-background-radius: 8; -fx-padding: 4;");
-                    imageContainer.setEffect(shadow);
+                    imageContainer.setStyle("-fx-background-color: transparent; -fx-padding: 2 4 2 4;");
 
                     contentBox.getChildren().add(imageContainer);
                 }
@@ -321,6 +319,8 @@ public class ChatView extends VBox {
                 System.err.println("Error loading image in chat: " + e.getMessage());
             }
         }
+
+        contentBox.getChildren().add(lbl);
 
         VBox bubble = new VBox(4, contentBox);
         Label ts = new Label("ChatAja  " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));

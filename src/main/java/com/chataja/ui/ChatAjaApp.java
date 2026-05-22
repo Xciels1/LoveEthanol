@@ -39,7 +39,8 @@ public class ChatAjaApp extends Application {
     private Button btnLogin;
     private Button btnNavJadwalIbadah;
     private Button btnNavJadwalTugas;
-    private Button btnNavKelolAkun;      // ← BARU
+    private Button btnNavLokasiGereja;
+    private Button btnNavKelolAkun;
     private Button btnNavPengumuman;
     private Button btnNavRenungan;
     private VBox   navSection;
@@ -172,11 +173,12 @@ public class ChatAjaApp extends Application {
         navSection.setManaged(false);
 
         // Nav buttons
-        btnNavJadwalIbadah = sidebarButton("📅  Jadwal Ibadah", false);
-        btnNavJadwalTugas  = sidebarButton("📋  Jadwal Tugas",  false);
-        btnNavKelolAkun    = sidebarButton("👤  Kelola Akun",   false);  // ← BARU
-        btnNavPengumuman   = sidebarButton("📢  Pengumuman",    false);
-        btnNavRenungan     = sidebarButton("📖  Renungan",      false);
+        btnNavJadwalIbadah  = sidebarButton("📅  Jadwal Ibadah",  false);
+        btnNavJadwalTugas   = sidebarButton("📋  Jadwal Tugas",   false);
+        btnNavLokasiGereja  = sidebarButton("📍  Lokasi Gereja",  false);
+        btnNavKelolAkun     = sidebarButton("👤  Kelola Akun",    false);
+        btnNavPengumuman    = sidebarButton("📢  Pengumuman",     false);
+        btnNavRenungan      = sidebarButton("📖  Renungan",       false);
 
         btnNavJadwalIbadah.setOnAction(e -> {
             adminView.showJadwalIbadah(); showAdminView(); setActiveNav(btnNavJadwalIbadah);
@@ -184,7 +186,10 @@ public class ChatAjaApp extends Application {
         btnNavJadwalTugas.setOnAction(e -> {
             adminView.showJadwalTugas(); showAdminView(); setActiveNav(btnNavJadwalTugas);
         });
-        btnNavKelolAkun.setOnAction(e -> {                             // ← BARU
+        btnNavLokasiGereja.setOnAction(e -> {
+            adminView.showLokasiGereja(); showAdminView(); setActiveNav(btnNavLokasiGereja);
+        });
+        btnNavKelolAkun.setOnAction(e -> {
             adminView.showKelolAkun(); showAdminView(); setActiveNav(btnNavKelolAkun);
         });
         btnNavPengumuman.setOnAction(e -> {
@@ -367,11 +372,12 @@ public class ChatAjaApp extends Application {
         while (navSection.getChildren().size() > 1) navSection.getChildren().remove(1);
 
         if ("admin".equals(user.getRole())) {
-            // Admin: Jadwal Ibadah, Jadwal Tugas, Kelola Akun
+            // Admin: Jadwal Ibadah, Jadwal Tugas, Lokasi Gereja, Kelola Akun
             navSection.getChildren().addAll(
                     btnNavJadwalIbadah,
                     btnNavJadwalTugas,
-                    btnNavKelolAkun       // ← BARU
+                    btnNavLokasiGereja,
+                    btnNavKelolAkun
             );
             adminView.setUser(user);
 

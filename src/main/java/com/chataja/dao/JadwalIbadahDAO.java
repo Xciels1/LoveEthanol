@@ -34,6 +34,7 @@ public class JadwalIbadahDAO {
         return list;
     }
 
+
     /** Ambil jadwal ibadah yang akan datang (untuk chatbot) */
     public List<JadwalIbadah> getUpcoming() {
         List<JadwalIbadah> list = new ArrayList<>();
