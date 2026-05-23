@@ -34,7 +34,6 @@ public class JadwalIbadahDAO {
         return list;
     }
 
-
     /** Ambil jadwal ibadah yang akan datang (untuk chatbot) */
     public List<JadwalIbadah> getUpcoming() {
         List<JadwalIbadah> list = new ArrayList<>();
@@ -54,6 +53,40 @@ public class JadwalIbadahDAO {
             while (rs.next()) list.add(map(rs));
         } catch (SQLException e) {
             System.err.println("[JadwalIbadahDAO] getUpcoming error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Ambil jadwal ibadah untuk minggu ini saja
+     * (dari hari ini sampai hari Minggu terdekat).
+     * Jika hari ini sudah Minggu, tampilkan jadwal hari ini saja.
+     */
+    public List<JadwalIbadah> getThisWeek() {
+        List<JadwalIbadah> list = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+
+        // Hitung hari Minggu terdekat (akhir minggu)
+        java.time.DayOfWeek todayDow = today.getDayOfWeek();
+        int daysUntilSunday = (java.time.DayOfWeek.SUNDAY.getValue() - todayDow.getValue() + 7) % 7;
+        // Jika hari ini Minggu, daysUntilSunday = 0 → tampilkan hari ini
+        LocalDate endOfWeek = today.plusDays(daysUntilSunday);
+
+        String sql = """
+            SELECT j.*, l.nama_tempat
+            FROM jadwal_ibadah j
+            LEFT JOIN lokasi_gereja l ON j.id_lokasi = l.id_lokasi
+            WHERE j.tanggal >= ? AND j.tanggal <= ?
+            ORDER BY j.tanggal, j.waktu
+        """;
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, today.toString());
+            ps.setString(2, endOfWeek.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(map(rs));
+        } catch (SQLException e) {
+            System.err.println("[JadwalIbadahDAO] getThisWeek error: " + e.getMessage());
         }
         return list;
     }

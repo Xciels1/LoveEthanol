@@ -14,7 +14,6 @@ com\chataja\ui\AdminView$1.class
 com\chataja\chatbot\ChatBot$Intent.class
 com\chataja\ui\MajelisView.class
 com\chataja\ui\MajelisView$1.class
-com\chataja\ui\AdminView$4.class
 com\chataja\model\Renungan.class
 com\chataja\dao\JadwalIbadahDAO.class
 com\chataja\ui\LoginDialog.class

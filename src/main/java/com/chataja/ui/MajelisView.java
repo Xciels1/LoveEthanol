@@ -113,8 +113,8 @@ public class MajelisView extends VBox {
         scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(16, 16, 24, 16));
+        VBox content = new VBox(16);
+        content.setPadding(new Insets(16));
         content.setStyle("-fx-background-color: " + BG + ";");
 
         content.getChildren().add(sectionTitle("Tambah Pengumuman"));
@@ -123,7 +123,7 @@ public class MajelisView extends VBox {
 
         listPengumumanBox = new VBox(8);
         listPengumumanBox.setStyle(
-                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 10;");
+                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
         content.getChildren().add(listPengumumanBox);
 
         scroll.setContent(content);
@@ -174,7 +174,7 @@ public class MajelisView extends VBox {
             FileChooser fc = new FileChooser();
             fc.setTitle("Pilih Foto Pengumuman");
             fc.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+                new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
             File file = fc.showOpenDialog(getScene().getWindow());
             if (file != null) {
                 selectedFotoPath[0] = file.getAbsolutePath();
@@ -220,7 +220,7 @@ public class MajelisView extends VBox {
             FileChooser fc = new FileChooser();
             fc.setTitle("Pilih Foto Pengumuman");
             fc.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+                new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
             File file = fc.showOpenDialog(getScene().getWindow());
             if (file != null) {
                 selectedFotoPath[0] = file.getAbsolutePath();
@@ -352,8 +352,6 @@ public class MajelisView extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10, 14, 10, 14));
         row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
-        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #5a5a5a; -fx-background-radius: 8;"));
-        row.setOnMouseExited(e -> row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;"));
 
         Label lJudul = rowLabel(item.getJudul(), true); lJudul.setPrefWidth(160);
         String isiShort = item.getIsi() != null && item.getIsi().length() > 70
@@ -440,7 +438,7 @@ public class MajelisView extends VBox {
             FileChooser fc = new FileChooser();
             fc.setTitle("Ganti Foto");
             fc.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+                new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
             File file = fc.showOpenDialog(dlg.getOwner());
             if (file != null) {
                 selectedFotoPath[0] = file.getAbsolutePath();
@@ -517,8 +515,8 @@ public class MajelisView extends VBox {
         scroll.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; -fx-border-width: 0;");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(16, 16, 24, 16));
+        VBox content = new VBox(16);
+        content.setPadding(new Insets(16));
         content.setStyle("-fx-background-color: " + BG + ";");
 
         content.getChildren().add(sectionTitle("Tambah Renungan"));
@@ -527,7 +525,7 @@ public class MajelisView extends VBox {
 
         listRenunganBox = new VBox(8);
         listRenunganBox.setStyle(
-                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 10;");
+                "-fx-background-color: " + CARD + "; -fx-background-radius: 10; -fx-padding: 8;");
         content.getChildren().add(listRenunganBox);
 
         scroll.setContent(content);
@@ -637,8 +635,6 @@ public class MajelisView extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10, 14, 10, 14));
         row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;");
-        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #5a5a5a; -fx-background-radius: 8;"));
-        row.setOnMouseExited(e -> row.setStyle("-fx-background-color: #525252; -fx-background-radius: 8;"));
 
         Label lJudul = rowLabel(item.getJudul(), true); lJudul.setPrefWidth(160);
         String isiShort = item.getIsi() != null && item.getIsi().length() > 70
@@ -753,7 +749,7 @@ public class MajelisView extends VBox {
     private Text sectionTitle(String text) {
         Text t = new Text(text);
         t.setFill(Color.WHITE);
-        t.setFont(Font.font("System", FontWeight.BOLD, 16));
+        t.setFont(Font.font("System", FontWeight.BOLD, 18));
         return t;
     }
 
@@ -777,7 +773,7 @@ public class MajelisView extends VBox {
         f.setPromptText(prompt);
         f.setStyle("-fx-background-color: " + INPUT + "; -fx-text-fill: white; " +
                 "-fx-prompt-text-fill: rgba(255,255,255,0.4); -fx-background-radius: 8; " +
-                "-fx-border-width: 0; -fx-padding: 10 12 10 12; -fx-font-size: 13;");
+                "-fx-border-width: 0; -fx-padding: 8 12 8 12; -fx-font-size: 13;");
         f.setMaxWidth(Double.MAX_VALUE);
         return f;
     }
@@ -789,7 +785,7 @@ public class MajelisView extends VBox {
         ta.setWrapText(true);
         ta.setStyle("-fx-background-color: " + INPUT + "; -fx-text-fill: white; " +
                 "-fx-prompt-text-fill: rgba(255,255,255,0.4); -fx-background-radius: 8; " +
-                "-fx-border-width: 0; -fx-padding: 10 12 10 12; -fx-font-size: 13; " +
+                "-fx-border-width: 0; -fx-padding: 8 12 8 12; -fx-font-size: 13; " +
                 "-fx-control-inner-background: " + INPUT + ";");
         return ta;
     }
@@ -804,11 +800,11 @@ public class MajelisView extends VBox {
     private Button primaryButton(String text) {
         Button btn = new Button(text);
         btn.setFont(Font.font("System", FontWeight.BOLD, 13));
-        btn.setPadding(new Insets(10, 36, 10, 36));
+        btn.setPadding(new Insets(10, 40, 10, 40));
         String style = "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;";
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
         String hover = "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
-                "-fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;";
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;";
         btn.setStyle(style);
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(style));

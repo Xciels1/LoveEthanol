@@ -85,13 +85,13 @@ public class LoginDialog extends Dialog<String[]> {
         btnLanjutkan.setFont(Font.font("System", FontWeight.BOLD, 14));
         btnLanjutkan.setStyle(
                 "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                        "-fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;");
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;");
         btnLanjutkan.setOnMouseEntered(e -> btnLanjutkan.setStyle(
                 "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
-                        "-fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"));
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;"));
         btnLanjutkan.setOnMouseExited(e -> btnLanjutkan.setStyle(
                 "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                        "-fx-background-radius: 8; -fx-cursor: hand; -fx-border-width: 0;"));
+                "-fx-background-radius: 22; -fx-cursor: hand; -fx-border-width: 0;"));
 
         body.getChildren().addAll(roleGroup, userGroup, passGroup, btnLanjutkan);
 
@@ -134,11 +134,11 @@ public class LoginDialog extends Dialog<String[]> {
 
     private void styleField(TextField field) {
         String base = "-fx-background-color: #5C5C5C; " +
-                "-fx-border-width: 0; -fx-background-radius: 8; " +
+                "-fx-border-width: 0; -fx-background-radius: 20; " +
                 "-fx-padding: 10 16 10 16; -fx-font-size: 13; -fx-text-fill: white; " +
                 "-fx-prompt-text-fill: rgba(255,255,255,0.45);";
         String focused = "-fx-background-color: #686868; " +
-                "-fx-border-width: 0; -fx-background-radius: 8; " +
+                "-fx-border-width: 0; -fx-background-radius: 20; " +
                 "-fx-padding: 10 16 10 16; -fx-font-size: 13; -fx-text-fill: white; " +
                 "-fx-prompt-text-fill: rgba(255,255,255,0.45);";
         field.setStyle(base);
@@ -149,17 +149,17 @@ public class LoginDialog extends Dialog<String[]> {
     private void styleCombo(ComboBox<?> combo) {
         combo.setStyle(
                 "-fx-background-color: #5C5C5C; -fx-border-width: 0; " +
-                        "-fx-background-radius: 8; -fx-font-size: 13; " +
-                        "-fx-text-fill: white; -fx-padding: 4 0 4 8;");
+                "-fx-background-radius: 20; -fx-font-size: 13; " +
+                "-fx-text-fill: white; -fx-padding: 4 0 4 8;");
     }
 
     private void setupResultConverter() {
         setResultConverter(btn -> {
             if (btn != null && btn.getButtonData() == ButtonBar.ButtonData.OK_DONE) {
                 return new String[]{
-                        usernameField.getText().trim(),
-                        passwordField.getText().trim(),
-                        roleCombo.getValue().toLowerCase()
+                    usernameField.getText().trim(),
+                    passwordField.getText().trim(),
+                    roleCombo.getValue().toLowerCase()
                 };
             }
             return null;
