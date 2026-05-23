@@ -291,7 +291,7 @@ public class MajelisView extends VBox {
                 // Salin foto ke uploads jika ada
                 String savedPath = null;
                 if (selectedFotoPath[0] != null) {
-                    savedPath = copyFotoToUploads(selectedFotoPath[0], lblStatus);
+                    savedPath = copyFotoToUploads(selectedFotoPath[0], "pengumuman", lblStatus);
                     if (savedPath == null) return; // gagal copy, pesan sudah ditampilkan
                 }
 
@@ -486,7 +486,7 @@ public class MajelisView extends VBox {
                 } else if (!selected.equals(currentSaved)) {
                     // Foto baru dipilih — salin ke uploads
                     Label dummy = new Label();
-                    String copied = copyFotoToUploads(selected, dummy);
+                    String copied = copyFotoToUploads(selected, "pengumuman", dummy);
                     item.setFotoPath(copied);
                 }
                 // Sama dengan sebelumnya → tidak berubah
@@ -545,15 +545,83 @@ public class MajelisView extends VBox {
         fBulan.setText(String.format("%02d", today.getMonthValue()));
         fTahun.setText(String.valueOf(today.getYear()));
 
-        // Drop zone (visual only — renungan tidak butuh foto)
+        // ── Foto upload (real FileChooser) ───────────────────────────────
+        final String[] selectedFotoPath = {null};
+
+        // Preview image
+        ImageView preview = new ImageView();
+        preview.setFitWidth(140);
+        preview.setFitHeight(80);
+        preview.setPreserveRatio(true);
+        preview.setSmooth(true);
+
+        Label lblFotoNama = new Label("drop here !");
+        lblFotoNama.setTextFill(Color.web("#AAAAAA"));
+        lblFotoNama.setFont(Font.font("System", 11));
+        lblFotoNama.setWrapText(true);
+
+        Label dropIcon = new Label("📄");
+        dropIcon.setFont(Font.font("System", 18));
+
         VBox dropZone = new VBox(4);
         dropZone.setAlignment(Pos.CENTER);
         dropZone.setPrefSize(140, 90);
         dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
-                "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8;");
-        Label dropText = new Label("drop here !"); dropText.setTextFill(Color.web("#AAAAAA")); dropText.setFont(Font.font("System", 11));
-        Label dropIcon = new Label("📄"); dropIcon.setFont(Font.font("System", 18));
-        dropZone.getChildren().addAll(dropIcon, dropText);
+                "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8; " +
+                "-fx-cursor: hand;");
+        dropZone.getChildren().addAll(dropIcon, lblFotoNama);
+
+        // Tombol hapus foto
+        Button btnHapusFoto = new Button("✕ Hapus Foto");
+        btnHapusFoto.setFont(Font.font("System", 11));
+        btnHapusFoto.setPadding(new Insets(4, 10, 4, 10));
+        btnHapusFoto.setStyle("-fx-background-color: " + DANGER + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 6; -fx-cursor: hand; -fx-border-width: 0;");
+        btnHapusFoto.setVisible(false);
+        btnHapusFoto.setManaged(false);
+        btnHapusFoto.setOnAction(ev -> {
+            selectedFotoPath[0] = null;
+            preview.setImage(null);
+            dropZone.getChildren().setAll(dropIcon, lblFotoNama);
+            lblFotoNama.setText("drop here !");
+            dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
+                    "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8; " +
+                    "-fx-cursor: hand;");
+            btnHapusFoto.setVisible(false);
+            btnHapusFoto.setManaged(false);
+        });
+
+        // Klik dropZone → buka file chooser
+        dropZone.setOnMouseClicked(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Pilih Foto Renungan");
+            fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+            File file = fc.showOpenDialog(getScene().getWindow());
+            if (file != null) {
+                selectedFotoPath[0] = file.getAbsolutePath();
+                try {
+                    Image img = new Image(file.toURI().toString(), 140, 80, true, true);
+                    preview.setImage(img);
+                    Label namaFile = new Label("✅ " + file.getName());
+                    namaFile.setTextFill(Color.web("#AAAAAA"));
+                    namaFile.setFont(Font.font("System", 10));
+                    namaFile.setWrapText(true);
+                    dropZone.getChildren().setAll(preview, namaFile);
+                    dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
+                            "-fx-border-color: " + ACCENT + "; -fx-border-style: solid; " +
+                            "-fx-border-radius: 8; -fx-cursor: hand;");
+                    btnHapusFoto.setVisible(true);
+                    btnHapusFoto.setManaged(true);
+                } catch (Exception ex) {
+                    lblFotoNama.setText("⚠ Gagal memuat: " + file.getName());
+                }
+            }
+        });
+
+        VBox fotoBox = new VBox(6);
+        fotoBox.setAlignment(Pos.TOP_LEFT);
+        fotoBox.getChildren().addAll(dropZone, btnHapusFoto);
 
         HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
         tglRow.setAlignment(Pos.CENTER_LEFT);
@@ -571,7 +639,7 @@ public class MajelisView extends VBox {
         grid.add(cardLabel("Isi Renungan"), 0, 2);
         grid.add(cardLabel("Tambahkan Foto *(opsional)"), 1, 2);
         grid.add(fIsi, 0, 3);
-        grid.add(dropZone, 1, 3);
+        grid.add(fotoBox, 1, 3);
 
         Button btnTambah = primaryButton("Tambahkan  Renungan");
         HBox btnRow = new HBox(btnTambah);
@@ -594,13 +662,34 @@ public class MajelisView extends VBox {
                         Integer.parseInt(fTahun.getText().trim()),
                         Integer.parseInt(fBulan.getText().trim()),
                         Integer.parseInt(fHari.getText().trim()));
+
+                // Salin foto ke uploads jika ada
+                String savedPath = null;
+                if (selectedFotoPath[0] != null) {
+                    savedPath = copyFotoToUploads(selectedFotoPath[0], "renungan", lblStatus);
+                    if (savedPath == null) return; // gagal copy, pesan sudah ditampilkan
+                }
+
                 Renungan r = new Renungan();
                 r.setJudul(judul); r.setIsi(isi); r.setTanggal(tgl);
                 r.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+                r.setFotoPath(savedPath);
                 if (renunganDAO.insert(r)) {
                     lblStatus.setText("✅ Renungan berhasil disimpan!");
                     lblStatus.setTextFill(Color.web("#55EFC4"));
                     fJudul.clear(); fIsi.clear();
+
+                    // Reset foto
+                    selectedFotoPath[0] = null;
+                    preview.setImage(null);
+                    dropZone.getChildren().setAll(dropIcon, lblFotoNama);
+                    lblFotoNama.setText("drop here !");
+                    dropZone.setStyle("-fx-background-color: " + INPUT + "; -fx-background-radius: 8; " +
+                            "-fx-border-color: #888; -fx-border-style: dashed; -fx-border-radius: 8; " +
+                            "-fx-cursor: hand;");
+                    btnHapusFoto.setVisible(false);
+                    btnHapusFoto.setManaged(false);
+
                     refreshListRenungan();
                 }
             } catch (Exception ex) {
@@ -643,6 +732,11 @@ public class MajelisView extends VBox {
         HBox.setHgrow(lIsi, Priority.ALWAYS);
         Label lTgl = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(100);
 
+        // Indikator foto
+        Label lFoto = rowLabel(item.hasFoto() ? "📷" : "—", false);
+        lFoto.setPrefWidth(30);
+        lFoto.setAlignment(Pos.CENTER);
+
         Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
         Button btnHapus = actionBtn("🗑 Hapus", DANGER);
 
@@ -652,7 +746,7 @@ public class MajelisView extends VBox {
         });
 
         row.getChildren().addAll(
-                lJudul, divider(), lIsi, divider(), lTgl,
+                lJudul, divider(), lIsi, divider(), lTgl, divider(), lFoto,
                 new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
                 btnEdit, spacer(6), btnHapus
         );
@@ -666,13 +760,80 @@ public class MajelisView extends VBox {
         TextArea  fIsi   = new TextArea(item.getIsi()); fIsi.setPrefRowCount(6); fIsi.setWrapText(true);
         DatePicker fTgl  = new DatePicker(item.getTanggal());
 
+        // ── Foto section ─────────────────────────────────────────────────
+        final String[] selectedFotoPath = {item.getFotoPath()};
+
+        ImageView preview = new ImageView();
+        preview.setFitWidth(160); preview.setFitHeight(90);
+        preview.setPreserveRatio(true); preview.setSmooth(true);
+
+        Label lblFotoNama = new Label();
+        lblFotoNama.setFont(Font.font("System", 11));
+        lblFotoNama.setTextFill(Color.web("#666666"));
+        lblFotoNama.setWrapText(true);
+
+        // Load foto lama jika ada
+        if (item.hasFoto()) {
+            File f = new File(item.getFotoPath());
+            if (f.exists()) {
+                try {
+                    preview.setImage(new Image(f.toURI().toString(), 160, 90, true, true));
+                    lblFotoNama.setText("📷 " + f.getName());
+                } catch (Exception ignored) {
+                    lblFotoNama.setText("⚠ Gagal memuat foto.");
+                }
+            } else {
+                lblFotoNama.setText("⚠ File tidak ditemukan.");
+            }
+        } else {
+            lblFotoNama.setText("Belum ada foto.");
+        }
+
+        Button btnGantiFoto = new Button("🔄 Ganti Foto");
+        btnGantiFoto.setFont(Font.font("System", 11));
+        btnGantiFoto.setPadding(new Insets(5, 12, 5, 12));
+        btnGantiFoto.setStyle("-fx-background-color: #718096; -fx-text-fill: white; " +
+                "-fx-background-radius: 6; -fx-cursor: hand;");
+
+        Button btnHapusFoto = new Button("✕ Hapus Foto");
+        btnHapusFoto.setFont(Font.font("System", 11));
+        btnHapusFoto.setPadding(new Insets(5, 12, 5, 12));
+        btnHapusFoto.setStyle("-fx-background-color: " + DANGER + "; -fx-text-fill: white; " +
+                "-fx-background-radius: 6; -fx-cursor: hand;");
+
+        btnGantiFoto.setOnAction(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Ganti Foto Renungan");
+            fc.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+            File file = fc.showOpenDialog(dlg.getOwner());
+            if (file != null) {
+                selectedFotoPath[0] = file.getAbsolutePath();
+                try {
+                    preview.setImage(new Image(file.toURI().toString(), 160, 90, true, true));
+                    lblFotoNama.setText("📷 " + file.getName() + " (baru)");
+                } catch (Exception ignored) {}
+            }
+        });
+
+        btnHapusFoto.setOnAction(e -> {
+            selectedFotoPath[0] = null;
+            preview.setImage(null);
+            lblFotoNama.setText("Foto dihapus.");
+        });
+
+        HBox fotoButtons = new HBox(8, btnGantiFoto, btnHapusFoto);
+        VBox fotoSection = new VBox(6, fotoButtons, preview, lblFotoNama);
+
+        // ── Grid dialog ──────────────────────────────────────────────────
         GridPane grid = dialogGrid();
         grid.add(dlgLabel("Judul"), 0, 0);        grid.add(fJudul, 1, 0);
         grid.add(dlgLabel("Isi Renungan"), 0, 1); grid.add(fIsi, 1, 1);
         grid.add(dlgLabel("Tanggal"), 0, 2);       grid.add(fTgl, 1, 2);
+        grid.add(dlgLabel("Foto"), 0, 3);          grid.add(fotoSection, 1, 3);
 
         dlg.getDialogPane().setContent(grid);
-        dlg.getDialogPane().setPrefWidth(480);
+        dlg.getDialogPane().setPrefWidth(500);
         ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
         dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
         dlg.setResultConverter(b -> {
@@ -680,6 +841,20 @@ public class MajelisView extends VBox {
                 item.setJudul(fJudul.getText().trim());
                 item.setIsi(fIsi.getText().trim());
                 item.setTanggal(fTgl.getValue());
+
+                String currentSaved = item.getFotoPath();
+                String selected     = selectedFotoPath[0];
+
+                if (selected == null) {
+                    // Foto dihapus
+                    item.setFotoPath(null);
+                } else if (!selected.equals(currentSaved)) {
+                    // Foto baru dipilih — salin ke uploads
+                    Label dummy = new Label();
+                    String copied = copyFotoToUploads(selected, "renungan", dummy);
+                    item.setFotoPath(copied);
+                }
+                // Sama dengan sebelumnya → tidak berubah
                 return item;
             }
             return null;
@@ -692,11 +867,12 @@ public class MajelisView extends VBox {
     // ════════════════════════════════════════════════════════════════════
 
     /**
-     * Salin file foto ke folder uploads/pengumuman/.
+     * Salin file foto ke folder uploads/{subfolder}/.
      * Nama file dibuat unik pakai timestamp.
+     * @param subfolder subfolder di dalam uploads (misalnya "pengumuman" atau "renungan")
      * @return path tujuan jika berhasil, null jika gagal
      */
-    private String copyFotoToUploads(String sourcePath, Label statusLabel) {
+    private String copyFotoToUploads(String sourcePath, String subfolder, Label statusLabel) {
         try {
             File sourceFile = new File(sourcePath);
             if (!sourceFile.exists()) {
@@ -714,7 +890,7 @@ public class MajelisView extends VBox {
             }
 
             // Buat folder tujuan
-            Path uploadDir = Paths.get("uploads", "pengumuman");
+            Path uploadDir = Paths.get("uploads", subfolder);
             Files.createDirectories(uploadDir);
 
             // Nama file unik: timestamp + ekstensi asli

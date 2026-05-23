@@ -6,18 +6,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * DAO untuk holybible.db (terpisah dari chataja.db).
- *
- * Struktur tabel bible:
- *   Book       INT  -- nomor kitab 0-65
- *   Chapter    INT  -- nomor pasal
- *   Versecount INT  -- nomor ayat
- *   verse      TEXT -- isi ayat (TB Indonesia)
- *
- * File holybible.db harus diletakkan di direktori yang sama
- * dengan chataja.db (direktori kerja aplikasi).
- */
+
 public class AyatAlkitabDAO {
 
     private static final String DB_URL = "jdbc:sqlite:holybible.db";

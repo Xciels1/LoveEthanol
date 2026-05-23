@@ -30,7 +30,7 @@ public class Renungan {
     /** Format tampilan untuk chatbot */
     public String tampilkan() {
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("id", "ID"));
-        return String.format("📖 RENUNGAN HARIAN\n\n" +
+        return String.format("RENUNGAN HARIAN\n\n" +
                         "Tanggal : %s\n" +
                         "Judul   : %s\n\n" +
                         "%s",
