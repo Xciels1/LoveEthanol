@@ -33,15 +33,17 @@ public class AdminView extends VBox {
     private final LokasiDAO       lokasiDAO       = new LokasiDAO();
     private final UserDAO         userDAO         = new UserDAO();
 
-    // Three panes switched by nav
+    // Four panes switched by nav
     private VBox paneIbadah;
     private VBox paneTugas;
+    private VBox paneLokasi;
     private VBox paneAkun;
     private StackPane contentStack;
 
     // List containers
     private VBox listIbadahBox;
     private VBox listTugasBox;
+    private VBox listLokasiBox;
     private VBox listAkunBox;
 
     // Colors (dark theme)
@@ -65,12 +67,21 @@ public class AdminView extends VBox {
     public void showJadwalIbadah() {
         paneIbadah.setVisible(true);  paneIbadah.setManaged(true);
         paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
         paneAkun  .setVisible(false); paneAkun.setManaged(false);
     }
 
     public void showJadwalTugas() {
         paneTugas .setVisible(true);  paneTugas.setManaged(true);
         paneIbadah.setVisible(false); paneIbadah.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
+    }
+
+    public void showLokasiGereja() {
+        paneLokasi.setVisible(true);  paneLokasi.setManaged(true);
+        paneIbadah.setVisible(false); paneIbadah.setManaged(false);
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
         paneAkun  .setVisible(false); paneAkun.setManaged(false);
     }
 
@@ -78,11 +89,13 @@ public class AdminView extends VBox {
         paneAkun  .setVisible(true);  paneAkun.setManaged(true);
         paneIbadah.setVisible(false); paneIbadah.setManaged(false);
         paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
     }
 
     public void refresh() {
         refreshListIbadah();
         refreshListTugas();
+        refreshListLokasi();
         refreshListAkun();
     }
 
@@ -95,17 +108,20 @@ public class AdminView extends VBox {
 
         paneIbadah = buildJadwalIbadahPane();
         paneTugas  = buildJadwalTugasPane();
+        paneLokasi = buildLokasiGerejaPane();
         paneAkun   = buildKelolAkunPane();
 
         // Default: paneIbadah visible
-        paneTugas.setVisible(false); paneTugas.setManaged(false);
-        paneAkun .setVisible(false); paneAkun.setManaged(false);
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
 
-        contentStack.getChildren().addAll(paneIbadah, paneTugas, paneAkun);
+        contentStack.getChildren().addAll(paneIbadah, paneTugas, paneLokasi, paneAkun);
         getChildren().add(contentStack);
 
         refreshListIbadah();
         refreshListTugas();
+        refreshListLokasi();
         refreshListAkun();
     }
 
@@ -547,7 +563,173 @@ public class AdminView extends VBox {
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  PANE 3: KELOLA AKUN (Tambah / Edit / Hapus admin & majelis)
+    //  PANE 3: LOKASI GEREJA
+    // ════════════════════════════════════════════════════════════════════
+
+    private VBox buildLokasiGerejaPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
+
+        HBox header = ChatView.buildPageHeader("Kelola Lokasi Gereja");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
+
+        ScrollPane scroll = buildScrollPane();
+        VBox content = buildScrollContent();
+
+        content.getChildren().add(sectionTitle("Tambah Lokasi Gereja"));
+        content.getChildren().add(buildLokasiFormCard());
+        content.getChildren().add(sectionTitle("Daftar Lokasi"));
+
+        listLokasiBox = new VBox(8);
+        listLokasiBox.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10; -fx-padding:8;");
+        content.getChildren().add(listLokasiBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildLokasiFormCard() {
+        TextField fNamaTempat = styledField("Nama Tempat");
+        TextField fAlamat     = styledField("Alamat Lengkap");
+        TextField fKontak     = styledField("Kontak (No. Telp / Email)");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().add(c0);
+
+        grid.add(cardLabel("Nama Tempat"),  0, 0);
+        grid.add(fNamaTempat, 0, 1);
+        grid.add(cardLabel("Alamat"),       0, 2);
+        grid.add(fAlamat,     0, 3);
+        grid.add(cardLabel("Kontak"),       0, 4);
+        grid.add(fKontak,     0, 5);
+
+        Button btnTambah = primaryButton("Tambahkan  Lokasi");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(6, 0, 0, 0));
+
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
+
+        btnTambah.setOnAction(e -> {
+            String nama = fNamaTempat.getText().trim();
+            String alamat = fAlamat.getText().trim();
+            String kontak = fKontak.getText().trim();
+
+            if (nama.isEmpty()) {
+                lblStatus.setText("⚠ Nama tempat wajib diisi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+                return;
+            }
+            if (alamat.isEmpty()) {
+                lblStatus.setText("⚠ Alamat wajib diisi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+                return;
+            }
+
+            Lokasi lokasi = new Lokasi();
+            lokasi.setNamaTempat(nama);
+            lokasi.setAlamat(alamat);
+            lokasi.setKontak(kontak);
+            lokasi.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+
+            if (lokasiDAO.insert(lokasi)) {
+                lblStatus.setText("✅ Lokasi berhasil disimpan!");
+                lblStatus.setTextFill(Color.web("#55EFC4"));
+                fNamaTempat.clear();
+                fAlamat.clear();
+                fKontak.clear();
+                refreshListLokasi();
+            } else {
+                lblStatus.setText("⚠ Gagal menyimpan lokasi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+            }
+        });
+
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10;");
+        return card;
+    }
+
+    private void refreshListLokasi() {
+        if (listLokasiBox == null) return;
+        listLokasiBox.getChildren().clear();
+        List<Lokasi> list = lokasiDAO.getAll();
+        if (list.isEmpty()) {
+            listLokasiBox.getChildren().add(emptyLabel("Belum ada data lokasi gereja."));
+            return;
+        }
+        for (Lokasi item : list) listLokasiBox.getChildren().add(buildLokasiRow(item));
+    }
+
+    private HBox buildLokasiRow(Lokasi item) {
+        HBox row = baseRow();
+
+        Label lNama = rowLabel(item.getNamaTempat(), true);
+        lNama.setPrefWidth(180);
+
+        Label lAlamat = rowLabel(item.getAlamat() != null ? item.getAlamat() : "-", false);
+        HBox.setHgrow(lAlamat, Priority.ALWAYS);
+
+        Label lKontak = rowLabel(item.getKontak() != null && !item.getKontak().isEmpty()
+                ? item.getKontak() : "-", false);
+        lKontak.setPrefWidth(140);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditLokasiDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) {
+                lokasiDAO.delete(item.getIdLokasi());
+                refreshListLokasi();
+            }
+        });
+
+        row.getChildren().addAll(
+                lNama, divider(), lAlamat, divider(), lKontak,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus);
+        return row;
+    }
+
+    private void showEditLokasiDialog(Lokasi item) {
+        Dialog<Lokasi> dlg = new Dialog<>();
+        dlg.setTitle("Edit Lokasi Gereja");
+
+        TextField fNama   = new TextField(item.getNamaTempat());
+        TextField fAlamat = new TextField(item.getAlamat());
+        TextField fKontak = new TextField(item.getKontak() != null ? item.getKontak() : "");
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Nama Tempat"), 0, 0); grid.add(fNama,   1, 0);
+        grid.add(dlgLabel("Alamat"),      0, 1); grid.add(fAlamat, 1, 1);
+        grid.add(dlgLabel("Kontak"),      0, 2); grid.add(fKontak, 1, 2);
+
+        dlg.getDialogPane().setContent(grid);
+        dlg.getDialogPane().setPrefWidth(440);
+        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+
+        dlg.setResultConverter(b -> {
+            if (b == ok) {
+                item.setNamaTempat(fNama.getText().trim());
+                item.setAlamat(fAlamat.getText().trim());
+                item.setKontak(fKontak.getText().trim());
+                return item;
+            }
+            return null;
+        });
+        dlg.showAndWait().ifPresent(l -> { lokasiDAO.update(l); refreshListLokasi(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PANE 4: KELOLA AKUN (Tambah / Edit / Hapus admin & majelis)
     // ════════════════════════════════════════════════════════════════════
 
     private VBox buildKelolAkunPane() {
@@ -843,8 +1025,8 @@ public class AdminView extends VBox {
     }
 
     private VBox buildScrollContent() {
-        VBox v = new VBox(16);
-        v.setPadding(new Insets(16));
+        VBox v = new VBox(20);
+        v.setPadding(new Insets(16, 16, 24, 16));
         v.setStyle("-fx-background-color:" + BG + ";");
         return v;
     }
@@ -854,6 +1036,8 @@ public class AdminView extends VBox {
         row.setAlignment(Pos.CENTER_LEFT);
         row.setPadding(new Insets(10, 14, 10, 14));
         row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;");
+        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color:#5a5a5a; -fx-background-radius:8;"));
+        row.setOnMouseExited(e -> row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;"));
         return row;
     }
 
@@ -866,7 +1050,7 @@ public class AdminView extends VBox {
     private Text sectionTitle(String text) {
         Text t = new Text(text);
         t.setFill(Color.WHITE);
-        t.setFont(Font.font("System", FontWeight.BOLD, 18));
+        t.setFont(Font.font("System", FontWeight.BOLD, 16));
         return t;
     }
 
@@ -890,7 +1074,7 @@ public class AdminView extends VBox {
         f.setPromptText(prompt);
         f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
                 "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
-                "-fx-border-width:0; -fx-padding:8 12 8 12; -fx-font-size:13;");
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
         f.setMaxWidth(Double.MAX_VALUE);
         return f;
     }
@@ -900,7 +1084,7 @@ public class AdminView extends VBox {
         f.setPromptText(prompt);
         f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
                 "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
-                "-fx-border-width:0; -fx-padding:8 12 8 12; -fx-font-size:13;");
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
         f.setMaxWidth(Double.MAX_VALUE);
         return f;
     }
@@ -915,11 +1099,11 @@ public class AdminView extends VBox {
     private Button primaryButton(String text) {
         Button btn = new Button(text);
         btn.setFont(Font.font("System", FontWeight.BOLD, 13));
-        btn.setPadding(new Insets(10, 40, 10, 40));
+        btn.setPadding(new Insets(10, 36, 10, 36));
         String style = "-fx-background-color:" + ACCENT + "; -fx-text-fill:white; " +
-                "-fx-background-radius:22; -fx-cursor:hand; -fx-border-width:0;";
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
         String hover = "-fx-background-color:#3D6FD4; -fx-text-fill:white; " +
-                "-fx-background-radius:22; -fx-cursor:hand; -fx-border-width:0;";
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
         btn.setStyle(style);
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(style));

@@ -1,24 +1,24 @@
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\chatbot\ChatBot.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\AyatAlkitabDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\JadwalIbadahDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\JadwalTugasDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\LokasiDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\PengumumanDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\RenunganDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\dao\UserDAO.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\db\DatabaseManager.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\Main.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\Admin.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\AyatAlkitab.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\JadwalIbadah.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\JadwalTugas.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\Lokasi.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\Majelis.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\Pengumuman.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\Renungan.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\model\User.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\ui\AdminView.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\ui\ChatAjaApp.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\ui\ChatView.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\ui\LoginDialog.java
-C:\Project\CbFinal\LoveEthanol-main\src\main\java\com\chataja\ui\MajelisView.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\chatbot\ChatBot.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\AyatAlkitabDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\JadwalIbadahDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\JadwalTugasDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\LokasiDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\PengumumanDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\RenunganDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\dao\UserDAO.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\db\DatabaseManager.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\Main.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\Admin.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\AyatAlkitab.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\JadwalIbadah.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\JadwalTugas.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\Lokasi.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\Majelis.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\Pengumuman.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\Renungan.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\model\User.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\ui\AdminView.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\ui\ChatAjaApp.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\ui\ChatView.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\ui\LoginDialog.java
+C:\Users\LENOVO\Documents\TUGAS KULIAH SEMESTER 1\SEMESTER 4\RPLBO\LoveEthanol\src\main\java\com\chataja\ui\MajelisView.java

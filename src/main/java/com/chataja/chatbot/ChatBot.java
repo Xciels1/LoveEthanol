@@ -5,7 +5,6 @@ import com.chataja.model.*;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -17,18 +16,18 @@ public class ChatBot {
     private User loggedUser;
 
     // ── DAO ──────────────────────────────────────────────────────────────
-    private final JadwalIbadahDAO jadwalIbadahDAO = new JadwalIbadahDAO();
-    private final LokasiDAO       lokasiDAO       = new LokasiDAO();
-    private final RenunganDAO     renunganDAO     = new RenunganDAO();
-    private final PengumumanDAO   pengumumanDAO   = new PengumumanDAO();
-    private final JadwalTugasDAO  jadwalTugasDAO  = new JadwalTugasDAO();
-    private final AyatAlkitabDAO  ayatDAO         = new AyatAlkitabDAO();
+    private final JadwalIbadahDAO  jadwalIbadahDAO  = new JadwalIbadahDAO();
+    private final LokasiDAO        lokasiDAO        = new LokasiDAO();
+    private final RenunganDAO      renunganDAO      = new RenunganDAO();
+    private final PengumumanDAO    pengumumanDAO    = new PengumumanDAO();
+    private final JadwalTugasDAO   jadwalTugasDAO   = new JadwalTugasDAO();
+    private final AyatAlkitabDAO   ayatDAO          = new AyatAlkitabDAO();
 
     // ── Enum Intent ───────────────────────────────────────────────────────
     private enum Intent {
-        JADWAL_IBADAH, JADWAL_IBADAH_MINGGU_INI, LOKASI, RENUNGAN,
-        PENGUMUMAN, KONTAK, JADWAL_TUGAS, SAPAAN, BANTUAN,
-        TIDAK_DIKENALI, AYAT_ALKITAB, DOA, TENTANG_BOT, UCAPAN_BERKAT
+        JADWAL_IBADAH, LOKASI, RENUNGAN, PENGUMUMAN, KONTAK,
+        JADWAL_TUGAS, SAPAAN, BANTUAN, TIDAK_DIKENALI,
+        AYAT_ALKITAB, DOA, TENTANG_BOT, UCAPAN_BERKAT
     }
 
     public ChatBot() {}
@@ -38,44 +37,16 @@ public class ChatBot {
     public User getLoggedUser()          { return loggedUser; }
     public String getNamaBot()           { return namaBot; }
 
-    // ── Public accessor untuk ChatView ────────────────────────────────────
-    public Renungan getRenunganHariIni() {
-        return renunganDAO.getHariIni();
-    }
-
-    public List<Pengumuman> getLatestPengumuman(int limit) {
-        return pengumumanDAO.getLatest(limit);
-    }
-
     // ────────────────────────────────────────────────────────────────────
     //  PUBLIC INTERFACE
     // ────────────────────────────────────────────────────────────────────
 
-    /**
-     * Proses pertanyaan utama.
-     * Otomatis mendeteksi apakah pertanyaan mengandung multi-intent.
-     * Jika ya → gabungkan semua jawaban.
-     * Jika tidak → jawab seperti biasa.
-     */
     public String prosesPertanyaan(String input) {
         if (!validasiInput(input)) {
-            return " Mohon masukkan pertanyaan yang valid (tidak boleh kosong).";
+            return "⚠️ Mohon masukkan pertanyaan yang valid (tidak boleh kosong).";
         }
-
-        String lower = input.toLowerCase().trim();
-
-        List<Intent> semuaIntent = deteksiSemuaIntent(lower);
-
-        // Hanya 1 intent → jawab normal
-        if (semuaIntent.size() <= 1) {
-            Intent intent = semuaIntent.isEmpty()
-                    ? deteksiIntent(lower)
-                    : semuaIntent.get(0);
-            return displayJawaban(intent, input);
-        }
-
-        // Lebih dari 1 → gabungkan semua jawaban
-        return prosesMultiIntent(semuaIntent, input);
+        Intent intent = deteksiIntent(normalizeText(input));
+        return displayJawaban(intent, input);
     }
 
     public boolean validasiInput(String input) {
@@ -84,8 +55,7 @@ public class ChatBot {
 
     public String displayJawaban(Intent intent, String input) {
         return switch (intent) {
-            case JADWAL_IBADAH             -> responJadwalIbadah();
-            case JADWAL_IBADAH_MINGGU_INI  -> responJadwalIbadahMingguIni();
+            case JADWAL_IBADAH -> responJadwalIbadah();
             case LOKASI        -> responLokasi();
             case RENUNGAN      -> responRenungan();
             case PENGUMUMAN    -> responPengumuman();
@@ -101,244 +71,36 @@ public class ChatBot {
         };
     }
 
-    // ────────────────────────────────────────────────────────────────────
-    //  MULTI-INTENT DETECTION
-    // ────────────────────────────────────────────────────────────────────
+    /**
+     * Dipakai UI agar deteksi prompt pengumuman konsisten dengan engine intent (termasuk typo/spasi).
+     */
+    public boolean isPengumumanQuery(String input) {
+        if (!validasiInput(input)) return false;
+        String text = normalizeText(input);
+        return containsAny(text, "pengumuman", "info", "berita", "kabar",
+                "pemberitahuan", "agenda", "acara gereja", "kegiatan gereja",
+                "event", "ada acara apa", "program gereja",
+                "warta jemaat", "warta gereja", "info gereja", "berita gereja");
+    }
 
     /**
-     * Deteksi SEMUA intent yang ada dalam satu kalimat input.
-     * Berbeda dengan deteksiIntent() yang berhenti di match pertama,
-     * method ini terus mengecek semua kemungkinan intent.
-     *
-     * Hanya intent "informasional" yang bisa digabung:
-     *   JADWAL_IBADAH, LOKASI, RENUNGAN, PENGUMUMAN,
-     *   KONTAK, AYAT_ALKITAB, JADWAL_TUGAS
-     *
-     * Intent standalone (tidak digabung):
-     *   SAPAAN, BANTUAN, TENTANG_BOT, UCAPAN_BERKAT, DOA
+     * Dipakai UI agar deteksi prompt renungan konsisten dengan engine intent (termasuk typo/spasi).
      */
-    private List<Intent> deteksiSemuaIntent(String text) {
-        List<Intent> intents = new ArrayList<>();
-
-        // ── Standalone — langsung return 1 saja ──────────────────────────
-        if (containsAny(text, "kamu itu apa", "siapa kamu", "siapa chataja",
-                "apa itu chataja", "tentang chataja", "tentang bot")) {
-            intents.add(Intent.TENTANG_BOT); return intents;
-        }
-        if (containsAny(text, "tuhan memberkati", "gbu", "god bless",
-                "berkat tuhan", "kiranya tuhan", "shalom")) {
-            intents.add(Intent.UCAPAN_BERKAT); return intents;
-        }
-        if (containsAny(text, "halo", "hai", "hi", "hello", "selamat pagi",
-                "selamat siang", "selamat malam", "selamat sore", "hei")) {
-            intents.add(Intent.SAPAAN); return intents;
-        }
-        if (containsAny(text, "bantuan", "help", "menu", "bisa apa",
-                "apa saja", "fitur", "panduan", "cara pakai")) {
-            intents.add(Intent.BANTUAN); return intents;
-        }
-        if (containsAny(text, "doa", "berdoa", "doakan",
-                "minta doa", "tolong doakan", "mohon doa")) {
-            intents.add(Intent.DOA); return intents;
-        }
-
-        // ── Informasional — semua yang cocok dikumpulkan ──────────────────
-
-        // Cek "minggu ini" lebih dulu (lebih spesifik)
-        if (containsAny(text, "ibadah minggu ini", "jadwal ibadah minggu ini",
-                "jadwal minggu ini", "kebaktian minggu ini")) {
-            intents.add(Intent.JADWAL_IBADAH_MINGGU_INI);
-        } else if (containsAny(text, "jadwal ibadah", "ibadah", "kebaktian", "misa",
-                "jadwal minggu", "ibadah minggu", "jadwal gereja",
-                "jam ibadah", "kapan ibadah", "ibadah hari ini",
-                "ibadah pagi", "ibadah malam", "kebaktian pemuda",
-                "ibadah remaja", "ibadah anak", "ibadah umum",
-                "kebaktian minggu", "liturgi")) {
-            intents.add(Intent.JADWAL_IBADAH);
-        }
-
-        if (containsAny(text, "lokasi", "alamat", "di mana", "dimana",
-                "tempat ibadah", "rumah ibadah", "gereja mana", "ada di",
-                "gereja kita", "maps", "rute", "arah ke", "jalan ke",
-                "google maps", "gps gereja")) {
-            intents.add(Intent.LOKASI);
-        }
-
-        if (containsAny(text, "renungan", "devotion", "renungan harian",
+    public boolean isRenunganQuery(String input) {
+        if (!validasiInput(input)) return false;
+        String text = normalizeText(input);
+        return containsAny(text, "renungan", "devotion", "renungan harian",
                 "bacaan", "kotbah", "khotbah", "firman hari ini",
                 "bahan renungan", "renungan pagi", "renungan malam",
-                "devotional", "pesan firman", "renungan minggu")) {
-            intents.add(Intent.RENUNGAN);
-        }
-
-        if (containsAny(text, "pengumuman", "info gereja", "berita gereja",
-                "pemberitahuan", "agenda", "acara gereja", "kegiatan gereja",
-                "warta jemaat", "warta gereja")) {
-            intents.add(Intent.PENGUMUMAN);
-        }
-
-        if (containsAny(text, "kontak", "hubungi", "telepon", "tlp",
-                "nomor", "pengurus", "contact", "hp", "whatsapp", "wa",
-                "gembala", "pendeta", "pastor", "nomor gereja")) {
-            intents.add(Intent.KONTAK);
-        }
-
-        if (containsAny(text, "ayat", "alkitab", "kitab suci",
-                "firman tuhan", "baca alkitab", "cari ayat")
-                || extractVerseReference(text) != null) {
-            intents.add(Intent.AYAT_ALKITAB);
-        }
-
-        if (containsAny(text, "tugas", "jadwal tugas", "pelayanan saya",
-                "jadwal pelayanan", "tugas majelis", "jadwal saya", "piket")) {
-            intents.add(Intent.JADWAL_TUGAS);
-        }
-
-        return intents;
-    }
-
-
-    /**
-     * Gabungkan jawaban dari semua intent yang terdeteksi.
-     * Setiap jawaban dipisah dengan garis pemisah.
-     */
-    private String prosesMultiIntent(List<Intent> intents, String input) {
-        StringBuilder sb = new StringBuilder();
-        String divider = "─".repeat(50);
-
-        for (int i = 0; i < intents.size(); i++) {
-            Intent intent = intents.get(i);
-
-            sb.append(divider).append("\n");
-            sb.append(getSectionTitle(intent)).append("\n");
-            sb.append(divider).append("\n");
-
-            String konten = getJawabanKonten(intent, input);
-            sb.append(konten);
-
-            if (i < intents.size() - 1) sb.append("\n\n");
-        }
-
-        return sb.toString().trim();
-    }
-
-    /** Judul section berdasarkan intent */
-    private String getSectionTitle(Intent intent) {
-        return switch (intent) {
-            case JADWAL_IBADAH            -> "📅  JADWAL IBADAH";
-            case JADWAL_IBADAH_MINGGU_INI -> "📅  JADWAL IBADAH MINGGU INI";
-            case LOKASI        -> "📍  LOKASI GEREJA";
-            case RENUNGAN      -> "🙏  RENUNGAN HARIAN";
-            case PENGUMUMAN    -> "📢  PENGUMUMAN";
-            case KONTAK        -> "📞  KONTAK PENGURUS";
-            case JADWAL_TUGAS  -> "📋  JADWAL TUGAS";
-            case AYAT_ALKITAB  -> "📖  AYAT ALKITAB";
-            default            -> "ℹ️  INFORMASI";
-        };
-    }
-
-    /** Isi konten saja, tanpa header. Jika kosong → "-" */
-    private String getJawabanKonten(Intent intent, String input) {
-        return switch (intent) {
-
-            case JADWAL_IBADAH, JADWAL_IBADAH_MINGGU_INI -> {
-                List<JadwalIbadah> list = (intent == Intent.JADWAL_IBADAH_MINGGU_INI)
-                        ? jadwalIbadahDAO.getThisWeek()
-                        : jadwalIbadahDAO.getUpcoming();
-                if (list.isEmpty()) yield "-";
-                StringBuilder sb = new StringBuilder();
-                String lastDate = "";
-                DateTimeFormatter fmt = DateTimeFormatter.ofPattern(
-                        "EEEE, dd MMMM yyyy", new Locale("id", "ID"));
-                for (JadwalIbadah j : list) {
-                    String dateKey = j.getTanggal() != null ? j.getTanggal().toString() : "";
-                    if (!dateKey.equals(lastDate)) {
-                        if (!lastDate.isEmpty()) sb.append("\n");
-                        sb.append("📆 ")
-                                .append(j.getTanggal() != null ? j.getTanggal().format(fmt) : "-")
-                                .append("\n");
-                        lastDate = dateKey;
-                    }
-                    sb.append(j.tampilkan()).append("\n");
-                }
-                yield sb.toString().trim();
-            }
-
-            case LOKASI -> {
-                List<Lokasi> list = lokasiDAO.getAll();
-                if (list.isEmpty()) yield "-";
-                StringBuilder sb = new StringBuilder();
-                for (Lokasi l : list) sb.append(l.tampilkan()).append("\n\n");
-                yield sb.toString().trim();
-            }
-
-            case RENUNGAN -> {
-                Renungan r = renunganDAO.getHariIni();
-                if (r == null) yield "-";
-                boolean isToday = r.getTanggal() != null
-                        && r.getTanggal().equals(LocalDate.now());
-                yield isToday
-                        ? r.tampilkan()
-                        : "⚠️ (Renungan terbaru)\n\n" + r.tampilkan();
-            }
-
-            case PENGUMUMAN -> {
-                List<Pengumuman> list = pengumumanDAO.getLatest(5);
-                if (list.isEmpty()) yield "-";
-                StringBuilder sb = new StringBuilder();
-                for (Pengumuman p : list) sb.append(p.tampilkan()).append("\n\n");
-                yield sb.toString().trim();
-            }
-
-            case KONTAK -> {
-                List<Lokasi> list = lokasiDAO.getAll();
-                if (list.isEmpty()) yield "-";
-                StringBuilder sb = new StringBuilder();
-                for (Lokasi l : list) {
-                    sb.append("🏛️ ").append(l.getNamaTempat()).append("\n");
-                    sb.append("   Kontak : ").append(l.getKontak()).append("\n\n");
-                }
-                yield sb.toString().trim();
-            }
-
-            case JADWAL_TUGAS -> {
-                if (loggedUser == null) yield "-";
-                if ("majelis".equals(loggedUser.getRole())) {
-                    List<JadwalTugas> list =
-                            jadwalTugasDAO.getByMajelis(loggedUser.getIdUser());
-                    if (list.isEmpty()) yield "-";
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("Majelis: ").append(loggedUser.getNama()).append("\n\n");
-                    for (JadwalTugas jt : list) sb.append(jt.tampilkan()).append("\n\n");
-                    yield sb.toString().trim();
-                } else if ("admin".equals(loggedUser.getRole())) {
-                    List<JadwalTugas> list = jadwalTugasDAO.getAll();
-                    if (list.isEmpty()) yield "-";
-                    StringBuilder sb = new StringBuilder();
-                    for (JadwalTugas jt : list) sb.append(jt.tampilkan()).append("\n\n");
-                    yield sb.toString().trim();
-                }
-                yield "-";
-            }
-
-            case AYAT_ALKITAB -> {
-                String ref = extractVerseReference(input);
-                if (ref == null) yield "-";
-                String result = queryAyat(ref);
-                yield result
-                        .replace("📖 AYAT ALKITAB\n" + "─".repeat(35) + "\n\n", "")
-                        .trim();
-            }
-
-            default -> "-";
-        };
+                "devotional", "pesan firman", "renungan minggu");
     }
 
     // ────────────────────────────────────────────────────────────────────
-    //  SINGLE INTENT DETECTION (fallback untuk prosesPertanyaan)
+    //  INTENT DETECTION
     // ────────────────────────────────────────────────────────────────────
 
     private Intent deteksiIntent(String text) {
+
         if (containsAny(text, "kamu itu apa", "siapa kamu", "siapa chataja",
                 "apa itu chataja", "tentang chataja", "tentang bot"))
             return Intent.TENTANG_BOT;
@@ -363,11 +125,6 @@ public class ChatBot {
         if (containsAny(text, "doa", "berdoa", "doakan",
                 "minta doa", "tolong doakan", "mohon doa"))
             return Intent.DOA;
-
-        // Cek "minggu ini" lebih dulu (lebih spesifik)
-        if (containsAny(text, "ibadah minggu ini", "jadwal ibadah minggu ini",
-                "jadwal minggu ini", "kebaktian minggu ini"))
-            return Intent.JADWAL_IBADAH_MINGGU_INI;
 
         if (containsAny(text, "jadwal ibadah", "ibadah", "kebaktian", "misa",
                 "jadwal minggu", "ibadah minggu", "jadwal gereja",
@@ -408,20 +165,111 @@ public class ChatBot {
     }
 
     private boolean containsAny(String text, String... keywords) {
+        String normalizedText = normalizeText(text);
         for (String kw : keywords) {
-            if (text.contains(kw)) return true;
+            if (isKeywordMatch(normalizedText, normalizeText(kw))) return true;
         }
         return false;
+    }
+
+    private String normalizeText(String text) {
+        if (text == null) return "";
+        return text.toLowerCase()
+                .replaceAll("[^\\p{L}\\p{N}\\s:.-]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String removeSpaces(String text) {
+        return text.replace(" ", "");
+    }
+
+    private boolean isKeywordMatch(String text, String keyword) {
+        if (text.isEmpty() || keyword.isEmpty()) return false;
+        if (text.contains(keyword)) return true;
+
+        String compactText = removeSpaces(text);
+        String compactKeyword = removeSpaces(keyword);
+        if (compactText.contains(compactKeyword)) return true;
+
+        if (fuzzyContainsByWindow(text, keyword)) return true;
+        return levenshteinDistance(compactText, compactKeyword) <= typoThreshold(compactKeyword.length());
+    }
+
+    private boolean fuzzyContainsByWindow(String text, String keyword) {
+        String[] textWords = text.split(" ");
+        String[] keywordWords = keyword.split(" ");
+        if (textWords.length == 0 || keywordWords.length == 0) return false;
+
+        int window = keywordWords.length;
+        int threshold = typoThreshold(keyword.length());
+
+        if (window == 1) {
+            String target = keywordWords[0];
+            for (String word : textWords) {
+                if (levenshteinDistance(word, target) <= typoThreshold(target.length())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        for (int i = 0; i <= textWords.length - window; i++) {
+            String candidate = String.join(" ", java.util.Arrays.copyOfRange(textWords, i, i + window));
+            if (levenshteinDistance(candidate, keyword) <= threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int typoThreshold(int len) {
+        if (len <= 4) return 1;
+        if (len <= 10) return 2;
+        return 3;
+    }
+
+    private int levenshteinDistance(String a, String b) {
+        if (a.equals(b)) return 0;
+        int n = a.length();
+        int m = b.length();
+        if (n == 0) return m;
+        if (m == 0) return n;
+
+        int[] prev = new int[m + 1];
+        int[] curr = new int[m + 1];
+        for (int j = 0; j <= m; j++) prev[j] = j;
+
+        for (int i = 1; i <= n; i++) {
+            curr[0] = i;
+            char ca = a.charAt(i - 1);
+            for (int j = 1; j <= m; j++) {
+                int cost = (ca == b.charAt(j - 1)) ? 0 : 1;
+                curr[j] = Math.min(
+                        Math.min(curr[j - 1] + 1, prev[j] + 1),
+                        prev[j - 1] + cost
+                );
+            }
+            int[] tmp = prev;
+            prev = curr;
+            curr = tmp;
+        }
+        return prev[m];
     }
 
     // ────────────────────────────────────────────────────────────────────
     //  BIBLE — query dari holybible.db (offline, no API)
     // ────────────────────────────────────────────────────────────────────
 
+    /**
+     * Ekstrak referensi ayat dari teks pengguna.
+     * Contoh: "Yohanes 3:16", "Mazmur 23:1-6", "1 Korintus 13:4"
+     */
     private String extractVerseReference(String text) {
+        String normalized = normalizeText(text);
         Pattern p = Pattern.compile(
-            "(?i)(\\d?\\s*[a-z]+(?:\\s+[a-z]+)?)\\s+(\\d+):(\\d+)(?:-(\\d+))?");
-        Matcher m = p.matcher(text);
+                "(?i)(\\d?\\s*[a-z]+(?:\\s+[a-z]+)?)\\s+(\\d+):(\\d+)(?:-(\\d+))?");
+        Matcher m = p.matcher(normalized);
         if (m.find()) {
             String book     = m.group(1).trim();
             String chapter  = m.group(2);
@@ -431,63 +279,94 @@ public class ChatBot {
                     ? book + " " + chapter + ":" + verse + "-" + endVerse
                     : book + " " + chapter + ":" + verse;
         }
+
+        Pattern compact = Pattern.compile(
+                "(?i)(\\d?[a-z]+(?:[a-z-]+)?)(\\d+):(\\d+)(?:-(\\d+))?");
+        Matcher mc = compact.matcher(removeSpaces(normalized));
+        if (mc.find()) {
+            String book = mc.group(1).trim();
+            String chapter = mc.group(2);
+            String verse = mc.group(3);
+            String endVerse = mc.group(4);
+            return endVerse != null
+                    ? book + " " + chapter + ":" + verse + "-" + endVerse
+                    : book + " " + chapter + ":" + verse;
+        }
         return null;
     }
 
+    /**
+     * Query ayat dari holybible.db berdasarkan referensi teks.
+     * Menggantikan callBibleApi() — tidak butuh internet.
+     *
+     * @param reference contoh: "Yohanes 3:16" atau "Mazmur 23:1-6"
+     */
     private String queryAyat(String reference) {
+        // Cek database tersedia
         if (!ayatDAO.isAvailable()) {
             return "❌ File holybible.db tidak ditemukan.\n"
-                 + "Pastikan file holybible.db ada di direktori yang sama dengan chataja.db.";
+                    + "Pastikan file holybible.db ada di direktori yang sama dengan chataja.db.";
         }
 
+        // Parse referensi
         String[] parts = parseReference(reference);
         if (parts == null) {
             return "⚠️ Format referensi tidak dikenali: \"" + reference + "\"\n"
-                 + "Contoh: \"Yohanes 3:16\" atau \"Mazmur 23:1-6\"";
+                    + "Contoh: \"Yohanes 3:16\" atau \"Mazmur 23:1-6\"";
         }
 
-        String namaKitab  = parts[0];
-        int    chapter    = Integer.parseInt(parts[1]);
-        int    verseStart = Integer.parseInt(parts[2]);
-        int    verseEnd   = parts[3] != null ? Integer.parseInt(parts[3]) : -1;
+        String namaKitab  = parts[0]; // "yohanes"
+        int    chapter    = Integer.parseInt(parts[1]); // 3
+        int    verseStart = Integer.parseInt(parts[2]); // 16
+        int    verseEnd   = parts[3] != null ? Integer.parseInt(parts[3]) : -1; // -1 jika single
 
+        // Lookup nomor kitab
         Integer bookNum = ayatDAO.getBookNumber(namaKitab);
         if (bookNum == null) {
             return "❌ Nama kitab tidak dikenali: \"" + namaKitab + "\"\n"
-                 + "Coba gunakan nama lengkap, misal: \"Yohanes\", \"Mazmur\", \"1 Korintus\"";
+                    + "Coba gunakan nama lengkap, misal: \"Yohanes\", \"Mazmur\", \"1 Korintus\"";
         }
 
+        // Single ayat
         if (verseEnd == -1) {
             AyatAlkitab ayat = ayatDAO.getAyat(bookNum, chapter, verseStart);
             if (ayat == null) {
                 return "❌ Ayat tidak ditemukan: " + reference + "\n"
-                     + "Periksa nama kitab, pasal, dan nomor ayat.";
+                        + "Periksa nama kitab, pasal, dan nomor ayat.";
             }
             return ayat.tampilkan();
         }
 
+        // Range ayat
         List<AyatAlkitab> list = ayatDAO.getRangeAyat(bookNum, chapter, verseStart, verseEnd);
         if (list.isEmpty()) {
             return "❌ Ayat tidak ditemukan: " + reference + "\n"
-                 + "Periksa nama kitab, pasal, dan nomor ayat.";
+                    + "Periksa nama kitab, pasal, dan nomor ayat.";
         }
         return formatRangeAyat(list, reference);
     }
 
+    /**
+     * Parse referensi teks menjadi [namaKitab, chapter, verseStart, verseEnd].
+     * "Yohanes 3:16"   → ["yohanes", "3", "16", null]
+     * "Mazmur 23:1-6"  → ["mazmur", "23", "1", "6"]
+     * "1 Korintus 13:4" → ["1-korintus", "13", "4", null]
+     */
     private String[] parseReference(String reference) {
         Pattern p = Pattern.compile(
-            "(?i)(\\d?\\s*[a-z]+(?:[\\s-][a-z]+)*)\\s+(\\d+):(\\d+)(?:-(\\d+))?");
+                "(?i)(\\d?\\s*[a-z]+(?:[\\s-][a-z]+)*)\\s+(\\d+):(\\d+)(?:-(\\d+))?");
         Matcher m = p.matcher(reference.trim());
         if (!m.find()) return null;
 
         String namaKitab  = m.group(1).trim().toLowerCase().replaceAll("\\s+", "-");
         String chapter    = m.group(2);
         String verseStart = m.group(3);
-        String verseEnd   = m.group(4);
+        String verseEnd   = m.group(4); // null jika single ayat
 
         return new String[]{namaKitab, chapter, verseStart, verseEnd};
     }
 
+    /** Format tampilan range ayat */
     private String formatRangeAyat(List<AyatAlkitab> list, String reference) {
         StringBuilder sb = new StringBuilder();
         sb.append("📖 AYAT ALKITAB\n");
@@ -496,8 +375,8 @@ public class ChatBot {
         AyatAlkitab first = list.get(0);
         AyatAlkitab last  = list.get(list.size() - 1);
         String ref = first.getNamaKitab() + " "
-                   + first.getChapter() + ":" + first.getVersecount()
-                   + "-" + last.getVersecount();
+                + first.getChapter() + ":" + first.getVersecount()
+                + "-" + last.getVersecount();
 
         sb.append("🔖 ").append(ref).append("\n\n");
         for (AyatAlkitab a : list) {
@@ -511,11 +390,27 @@ public class ChatBot {
     //  RESPONSE BUILDERS — UC-1 s.d. UC-8
     // ────────────────────────────────────────────────────────────────────
 
+    // ── Public accessor methods untuk ChatView ──────────────────────────
+
+    /**
+     * Digunakan oleh ChatView untuk menampilkan renungan di sidebar/panel.
+     */
+    public Renungan getRenunganHariIni() {
+        return renunganDAO.getHariIni();
+    }
+
+    /**
+     * Digunakan oleh ChatView untuk menampilkan pengumuman terbaru.
+     */
+    public List<Pengumuman> getLatestPengumuman(int limit) {
+        return pengumumanDAO.getLatest(limit);
+    }
+
     private String responJadwalIbadah() {
         List<JadwalIbadah> list = jadwalIbadahDAO.getUpcoming();
         if (list.isEmpty()) {
             return "📅 Jadwal ibadah belum tersedia saat ini.\n"
-                 + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.";
+                    + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.";
         }
         StringBuilder sb = new StringBuilder();
         sb.append("📅 JADWAL IBADAH GEREJA\n");
@@ -527,33 +422,8 @@ public class ChatBot {
             if (!dateKey.equals(lastDate)) {
                 if (!lastDate.isEmpty()) sb.append("\n");
                 sb.append("📆 ")
-                  .append(j.getTanggal() != null ? j.getTanggal().format(fmt) : "-")
-                  .append("\n");
-                lastDate = dateKey;
-            }
-            sb.append(j.tampilkan()).append("\n");
-        }
-        return sb.toString().trim();
-    }
-
-    private String responJadwalIbadahMingguIni() {
-        List<JadwalIbadah> list = jadwalIbadahDAO.getThisWeek();
-        if (list.isEmpty()) {
-            return "📅 Tidak ada jadwal ibadah untuk minggu ini.\n"
-                 + "Silakan tanyakan \"jadwal ibadah\" untuk melihat jadwal mendatang.";
-        }
-        StringBuilder sb = new StringBuilder();
-        sb.append("📅 JADWAL IBADAH MINGGU INI\n");
-        sb.append("─".repeat(35)).append("\n\n");
-        String lastDate = "";
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", new Locale("id", "ID"));
-        for (JadwalIbadah j : list) {
-            String dateKey = j.getTanggal() != null ? j.getTanggal().toString() : "";
-            if (!dateKey.equals(lastDate)) {
-                if (!lastDate.isEmpty()) sb.append("\n");
-                sb.append("📆 ")
-                  .append(j.getTanggal() != null ? j.getTanggal().format(fmt) : "-")
-                  .append("\n");
+                        .append(j.getTanggal() != null ? j.getTanggal().format(fmt) : "-")
+                        .append("\n");
                 lastDate = dateKey;
             }
             sb.append(j.tampilkan()).append("\n");
@@ -565,7 +435,7 @@ public class ChatBot {
         List<Lokasi> list = lokasiDAO.getAll();
         if (list.isEmpty()) {
             return "📍 Informasi lokasi gereja belum tersedia.\n"
-                 + "Silakan hubungi pengurus untuk informasi lebih lanjut.";
+                    + "Silakan hubungi pengurus untuk informasi lebih lanjut.";
         }
         StringBuilder sb = new StringBuilder();
         sb.append("📍 LOKASI RUMAH IBADAH\n");
@@ -597,7 +467,7 @@ public class ChatBot {
         List<Lokasi> list = lokasiDAO.getAll();
         if (list.isEmpty()) {
             return "📞 Informasi kontak pengurus belum tersedia.\n"
-                 + "Silakan kunjungi gereja secara langsung.";
+                    + "Silakan kunjungi gereja secara langsung.";
         }
         StringBuilder sb = new StringBuilder();
         sb.append("📞 KONTAK PENGURUS GEREJA\n");
@@ -612,7 +482,7 @@ public class ChatBot {
     private String responJadwalTugas() {
         if (loggedUser == null || !"majelis".equals(loggedUser.getRole())) {
             return "🔒 Fitur ini hanya tersedia untuk Majelis yang telah login.\n"
-                 + "Silakan login terlebih dahulu melalui tombol Login di bawah.";
+                    + "Silakan login terlebih dahulu melalui tombol Login di bawah.";
         }
         List<JadwalTugas> list = jadwalTugasDAO.getByMajelis(loggedUser.getIdUser());
         if (list.isEmpty())
@@ -628,43 +498,40 @@ public class ChatBot {
     private String responSapaan() {
         String nama = (loggedUser != null) ? ", " + loggedUser.getNama() : "";
         return "👋 Halo" + nama + "! Saya " + namaBot + ", asisten informasi gereja Anda.\n\n"
-             + "Saya siap membantu Anda dengan:\n"
-             + "• 📅 Jadwal ibadah\n"
-             + "• 📍 Lokasi & alamat gereja\n"
-             + "• 📖 Ayat Alkitab (cth: \"Yohanes 3:16\")\n"
-             + "• 🙏 Renungan harian\n"
-             + "• 📢 Pengumuman gereja\n"
-             + "• 📞 Kontak pengurus\n\n"
-             + "💡 Tip: Anda bisa tanya beberapa hal sekaligus!\n"
-             + "   Cth: \"Berikan renungan hari ini dan jadwal ibadah minggu ini\"\n\n"
-             + "Ketik \"bantuan\" untuk panduan lengkap. 😊";
+                + "Saya siap membantu Anda dengan:\n"
+                + "• 📅 Jadwal ibadah\n"
+                + "• 📍 Lokasi & alamat gereja\n"
+                + "• 📖 Ayat Alkitab (cth: \"Yohanes 3:16\")\n"
+                + "• 🙏 Renungan harian\n"
+                + "• 📢 Pengumuman gereja\n"
+                + "• 📞 Kontak pengurus\n\n"
+                + "Ketik \"bantuan\" untuk panduan lengkap. 😊";
     }
 
     private String responBantuan() {
         return "ℹ️ PANDUAN PENGGUNAAN ChatAja\n"
-             + "─".repeat(35) + "\n\n"
-             + "📅 Jadwal Ibadah\n"
-             + "   → \"Jadwal ibadah minggu ini\"\n"
-             + "   → \"Jam berapa kebaktian pagi?\"\n\n"
-             + "📍 Lokasi Gereja\n"
-             + "   → \"Di mana alamat gereja?\"\n\n"
-             + "📖 Ayat Alkitab (offline, 31.104 ayat TB)\n"
-             + "   → \"Yohanes 3:16\"\n"
-             + "   → \"Mazmur 23:1-6\"\n"
-             + "   → \"Ayat tentang kasih\"\n"
-             + "   → \"Ayat alkitab acak\"\n\n"
-             + "🙏 Renungan Harian\n"
-             + "   → \"Berikan renungan hari ini\"\n\n"
-             + "📢 Pengumuman\n"
-             + "   → \"Pengumuman gereja terbaru\"\n\n"
-             + "📞 Kontak Pengurus\n"
-             + "   → \"Nomor telepon pendeta\"\n\n"
-             + "📋 Jadwal Tugas (khusus Majelis login)\n"
-             + "   → \"Jadwal pelayanan saya\"\n\n"
-             + "💡 MULTI-PERTANYAAN (fitur baru!)\n"
-             + "   → \"Renungan hari ini dan jadwal ibadah\"\n"
-             + "   → \"Lokasi gereja beserta kontaknya\"\n"
-             + "   → \"Pengumuman, renungan, dan jadwal ibadah\"";
+                + "─".repeat(35) + "\n\n"
+                + "📅 Jadwal Ibadah\n"
+                + "   → \"Jadwal ibadah minggu ini\"\n"
+                + "   → \"Jam berapa kebaktian pagi?\"\n\n"
+                + "📍 Lokasi Gereja\n"
+                + "   → \"Di mana alamat gereja?\"\n"
+                + "   → \"Rute ke gereja\"\n\n"
+                + "📖 Ayat Alkitab (offline, 31.104 ayat TB)\n"
+                + "   → \"Yohanes 3:16\"\n"
+                + "   → \"Mazmur 23:1-6\" (range ayat)\n"
+                + "   → \"Ayat tentang kasih\"\n"
+                + "   → \"Ayat tentang kekuatan\"\n"
+                + "   → \"Cari ayat kasih\" (pencarian kata)\n"
+                + "   → \"Ayat alkitab acak\"\n\n"
+                + "🙏 Renungan Harian\n"
+                + "   → \"Berikan renungan hari ini\"\n\n"
+                + "📢 Pengumuman\n"
+                + "   → \"Pengumuman gereja terbaru\"\n\n"
+                + "📞 Kontak Pengurus\n"
+                + "   → \"Nomor telepon pendeta\"\n\n"
+                + "📋 Jadwal Tugas (khusus Majelis login)\n"
+                + "   → \"Jadwal pelayanan saya\"";
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -674,9 +541,11 @@ public class ChatBot {
     private String responAyatAlkitab(String input) {
         String lower = input.toLowerCase();
 
+        // 1. Cari referensi spesifik (Yohanes 3:16, Mazmur 23:1-6, dst)
         String ref = extractVerseReference(input);
         if (ref != null) return queryAyat(ref);
 
+        // 2. Cocokkan topik → referensi populer
         if (containsAny(lower, "tentang kasih", "soal kasih"))
             return queryAyat("Yohanes 3:16");
         if (containsAny(lower, "tentang iman", "soal iman"))
@@ -702,35 +571,39 @@ public class ChatBot {
         if (containsAny(lower, "tentang kasih karunia", "anugerah", "rahmat"))
             return queryAyat("Efesus 2:8");
 
+        // 3. Ayat acak
         if (containsAny(lower, "acak", "random", "sembarang", "ayat apa saja")) {
             AyatAlkitab ayat = ayatDAO.getAyatAcak();
             return ayat != null ? ayat.tampilkan()
                     : "❌ Gagal mengambil ayat. Pastikan holybible.db tersedia.";
         }
 
+        // 4. Pencarian kata kunci — "cari ayat kasih", "ayat tentang xxx"
         if (containsAny(lower, "cari ayat", "cari kata")) {
             String keyword = lower.replace("cari ayat", "").replace("cari kata", "").trim();
             if (!keyword.isEmpty()) return cariAyat(keyword);
         }
 
+        // 5. Panduan
         return "📖 AYAT ALKITAB\n"
-             + "─".repeat(35) + "\n\n"
-             + "Saya bisa mencari ayat dari 31.104 ayat Alkitab TB!\n\n"
-             + "Cara bertanya:\n"
-             + "• Referensi spesifik : \"Yohanes 3:16\"\n"
-             + "• Rentang ayat       : \"Mazmur 23:1-6\"\n"
-             + "• Kitab bernomor     : \"1 Korintus 13:4\"\n"
-             + "• Cari kata          : \"Cari ayat kasih\"\n\n"
-             + "Atau berdasarkan topik:\n"
-             + "• \"Ayat tentang kasih\"\n"
-             + "• \"Ayat tentang iman\"\n"
-             + "• \"Ayat tentang kekuatan\"\n"
-             + "• \"Ayat tentang damai\"\n"
-             + "• \"Ayat tentang hikmat\"\n"
-             + "• \"Ayat tentang pengampunan\"\n"
-             + "• \"Ayat alkitab acak\"\n";
+                + "─".repeat(35) + "\n\n"
+                + "Saya bisa mencari ayat dari 31.104 ayat Alkitab TB!\n\n"
+                + "Cara bertanya:\n"
+                + "• Referensi spesifik : \"Yohanes 3:16\"\n"
+                + "• Rentang ayat       : \"Mazmur 23:1-6\"\n"
+                + "• Kitab bernomor     : \"1 Korintus 13:4\"\n"
+                + "• Cari kata          : \"Cari ayat kasih\"\n\n"
+                + "Atau berdasarkan topik:\n"
+                + "• \"Ayat tentang kasih\"\n"
+                + "• \"Ayat tentang iman\"\n"
+                + "• \"Ayat tentang kekuatan\"\n"
+                + "• \"Ayat tentang damai\"\n"
+                + "• \"Ayat tentang hikmat\"\n"
+                + "• \"Ayat tentang pengampunan\"\n"
+                + "• \"Ayat alkitab acak\"\n";
     }
 
+    /** Cari ayat berdasarkan kata kunci dalam isi ayat */
     private String cariAyat(String keyword) {
         List<AyatAlkitab> list = ayatDAO.searchAyat(keyword, 5);
         if (list.isEmpty()) {
@@ -741,8 +614,8 @@ public class ChatBot {
         sb.append("─".repeat(35)).append("\n\n");
         for (AyatAlkitab a : list) {
             sb.append("🔖 ").append(a.getNamaKitab())
-              .append(" ").append(a.getChapter())
-              .append(":").append(a.getVersecount()).append("\n");
+                    .append(" ").append(a.getChapter())
+                    .append(":").append(a.getVersecount()).append("\n");
             sb.append(a.getVerse().trim()).append("\n\n");
         }
         sb.append("— Alkitab Terjemahan Baru (TB)");
@@ -751,50 +624,50 @@ public class ChatBot {
 
     private String responDoa() {
         return "🙏 DOA & PERSEKUTUAN\n"
-             + "─".repeat(35) + "\n\n"
-             + "\"Janganlah hendaknya kamu kuatir tentang apapun juga, "
-             + "tetapi nyatakanlah dalam segala hal keinginanmu kepada Allah "
-             + "dalam doa dan permohonan dengan ucapan syukur.\"\n\n"
-             + "— Filipi 4:6\n\n"
-             + "Untuk permohonan doa pribadi:\n"
-             + "📞 Hubungi pengurus gereja (ketik \"kontak\")\n"
-             + "🕐 Hadir dalam ibadah doa gereja\n"
-             + "📋 Jadwal ibadah doa → ketik \"jadwal ibadah\"";
+                + "─".repeat(35) + "\n\n"
+                + "\"Janganlah hendaknya kamu kuatir tentang apapun juga, "
+                + "tetapi nyatakanlah dalam segala hal keinginanmu kepada Allah "
+                + "dalam doa dan permohonan dengan ucapan syukur.\"\n\n"
+                + "— Filipi 4:6\n\n"
+                + "Untuk permohonan doa pribadi:\n"
+                + "📞 Hubungi pengurus gereja (ketik \"kontak\")\n"
+                + "🕐 Hadir dalam ibadah doa gereja\n"
+                + "📋 Jadwal ibadah doa → ketik \"jadwal ibadah\"";
     }
 
     private String responTentangBot() {
         return "ℹ️ TENTANG CHATAJA\n"
-             + "─".repeat(35) + "\n\n"
-             + "Saya adalah " + namaBot + "\n"
-             + "Asisten informasi resmi gereja ini.\n\n"
-             + "Yang bisa saya bantu:\n"
-             + "📅 Jadwal ibadah mingguan\n"
-             + "📍 Lokasi & kontak gereja\n"
-             + "📖 Ayat Alkitab TB (31.104 ayat, offline)\n"
-             + "📢 Pengumuman & warta jemaat\n"
-             + "🙏 Renungan harian\n"
-             + "📋 Jadwal tugas majelis\n"
-             + "💡 Multi-pertanyaan dalam satu kalimat\n\n"
-             + "Ketik \"bantuan\" untuk panduan lengkap.";
+                + "─".repeat(35) + "\n\n"
+                + "Saya adalah " + namaBot + "\n"
+                + "Asisten informasi resmi gereja ini.\n\n"
+                + "Yang bisa saya bantu:\n"
+                + "📅 Jadwal ibadah mingguan\n"
+                + "📍 Lokasi & kontak gereja\n"
+                + "📖 Ayat Alkitab TB (31.104 ayat, offline)\n"
+                + "📢 Pengumuman & warta jemaat\n"
+                + "🙏 Renungan harian\n"
+                + "📋 Jadwal tugas majelis\n\n"
+                + "Ketik \"bantuan\" untuk panduan lengkap.";
     }
 
     private String responUcapanBerkat() {
+        // Ambil langsung dari DB
         AyatAlkitab ayat = ayatDAO.getAyat(44, 1, 7); // Roma 1:7
-        String teks = (ayat != null) ? ayat.getVerse()
-                : "Kasih karunia dan damai sejahtera dari Allah, Bapa kita, "
-                + "dan dari Tuhan Yesus Kristus menyertai kamu.";
+        String teks = (ayat != null) ? ayat.getVerse() :
+                "Kasih karunia dan damai sejahtera dari Allah, Bapa kita, " +
+                        "dan dari Tuhan Yesus Kristus menyertai kamu.";
         return "🙏 Tuhan Yesus memberkati Anda juga!\n\n"
-             + "\"" + teks + "\"\n\n"
-             + "— Roma 1:7\n\n"
-             + "Semoga hari Anda dipenuhi berkat Tuhan. 😊";
+                + "\"" + teks + "\"\n\n"
+                + "— Roma 1:7\n\n"
+                + "Semoga hari Anda dipenuhi berkat Tuhan. 😊";
     }
 
     private String responTidakDikenali(String input) {
         return "🤔 Maaf, saya tidak memahami: \"" + input + "\"\n\n"
-             + "Coba tanyakan:\n"
-             + "• \"Jadwal ibadah\"\n"
-             + "• \"Yohanes 3:16\" (ayat Alkitab)\n"
-             + "• \"Renungan hari ini\"\n\n"
-             + "Atau ketik \"bantuan\" untuk daftar lengkap. 😊";
+                + "Coba tanyakan:\n"
+                + "• \"Jadwal ibadah\"\n"
+                + "• \"Yohanes 3:16\" (ayat Alkitab)\n"
+                + "• \"Renungan hari ini\"\n\n"
+                + "Atau ketik \"bantuan\" untuk daftar lengkap. 😊";
     }
 }

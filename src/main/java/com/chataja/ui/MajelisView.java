@@ -43,6 +43,8 @@ public class MajelisView extends VBox {
 
     private VBox listPengumumanBox;
     private VBox listRenunganBox;
+    private final String[] selectedFotoPathRenungan = {null};
+    private final ImageView previewRenungan = new ImageView();
 
     private static final String BG      = "#3B3B3B";
     private static final String CARD    = "#484848";
@@ -142,6 +144,8 @@ public class MajelisView extends VBox {
         fHari.setText(String.format("%02d", today.getDayOfMonth()));
         fBulan.setText(String.format("%02d", today.getMonthValue()));
         fTahun.setText(String.valueOf(today.getYear()));
+
+
 
         // ── Foto upload (real FileChooser) ───────────────────────────────
         final String[] selectedFotoPath = {null};
@@ -554,6 +558,28 @@ public class MajelisView extends VBox {
         Label dropText = new Label("drop here !"); dropText.setTextFill(Color.web("#AAAAAA")); dropText.setFont(Font.font("System", 11));
         Label dropIcon = new Label("📄"); dropIcon.setFont(Font.font("System", 18));
         dropZone.getChildren().addAll(dropIcon, dropText);
+        dropZone.setOnMouseClicked(e -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Pilih Foto Renungan");
+            fc.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Gambar", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+            File file = fc.showOpenDialog(getScene() != null ? getScene().getWindow() : null);
+            if (file != null) {
+                selectedFotoPathRenungan[0] = file.getAbsolutePath();
+                try {
+                    Image img = new Image(file.toURI().toString(), 140, 80, true, true);
+                    previewRenungan.setImage(img);
+                    previewRenungan.setFitWidth(140);
+                    previewRenungan.setFitHeight(80);
+                    previewRenungan.setPreserveRatio(true);
+                    previewRenungan.setSmooth(true);
+                    dropZone.getChildren().setAll(previewRenungan, dropText);
+                    dropText.setText("Foto: " + file.getName());
+                } catch (Exception ex) {
+                    dropText.setText("Gagal: " + file.getName());
+                }
+            }
+        });
 
         HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
         tglRow.setAlignment(Pos.CENTER_LEFT);
@@ -597,10 +623,19 @@ public class MajelisView extends VBox {
                 Renungan r = new Renungan();
                 r.setJudul(judul); r.setIsi(isi); r.setTanggal(tgl);
                 r.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+                if (selectedFotoPathRenungan[0] != null) {
+                    String savedPath = copyFotoToUploads(selectedFotoPathRenungan[0], lblStatus);
+                    if (savedPath == null) return;
+                    r.setFotoPath(savedPath);
+                }
                 if (renunganDAO.insert(r)) {
                     lblStatus.setText("✅ Renungan berhasil disimpan!");
                     lblStatus.setTextFill(Color.web("#55EFC4"));
                     fJudul.clear(); fIsi.clear();
+                    selectedFotoPathRenungan[0] = null;
+                    previewRenungan.setImage(null);
+                    dropText.setText("drop here !");
+                    dropZone.getChildren().setAll(dropIcon, dropText);
                     refreshListRenungan();
                 }
             } catch (Exception ex) {
