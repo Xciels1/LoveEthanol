@@ -45,7 +45,7 @@ public class ChatBot {
         if (!validasiInput(input)) {
             return "⚠️ Mohon masukkan pertanyaan yang valid (tidak boleh kosong).";
         }
-        Intent intent = deteksiIntent(input.toLowerCase().trim());
+        Intent intent = deteksiIntent(normalizeText(input));
         return displayJawaban(intent, input);
     }
 
@@ -141,10 +141,96 @@ public class ChatBot {
     }
 
     private boolean containsAny(String text, String... keywords) {
+        String normalizedText = normalizeText(text);
         for (String kw : keywords) {
-            if (text.contains(kw)) return true;
+            if (isKeywordMatch(normalizedText, normalizeText(kw))) return true;
         }
         return false;
+    }
+
+    private String normalizeText(String text) {
+        if (text == null) return "";
+        return text.toLowerCase()
+                .replaceAll("[^\\p{L}\\p{N}\\s:.-]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private String removeSpaces(String text) {
+        return text.replace(" ", "");
+    }
+
+    private boolean isKeywordMatch(String text, String keyword) {
+        if (text.isEmpty() || keyword.isEmpty()) return false;
+        if (text.contains(keyword)) return true;
+
+        String compactText = removeSpaces(text);
+        String compactKeyword = removeSpaces(keyword);
+        if (compactText.contains(compactKeyword)) return true;
+
+        if (fuzzyContainsByWindow(text, keyword)) return true;
+        return levenshteinDistance(compactText, compactKeyword) <= typoThreshold(compactKeyword.length());
+    }
+
+    private boolean fuzzyContainsByWindow(String text, String keyword) {
+        String[] textWords = text.split(" ");
+        String[] keywordWords = keyword.split(" ");
+        if (textWords.length == 0 || keywordWords.length == 0) return false;
+
+        int window = keywordWords.length;
+        int threshold = typoThreshold(keyword.length());
+
+        if (window == 1) {
+            String target = keywordWords[0];
+            for (String word : textWords) {
+                if (levenshteinDistance(word, target) <= typoThreshold(target.length())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        for (int i = 0; i <= textWords.length - window; i++) {
+            String candidate = String.join(" ", java.util.Arrays.copyOfRange(textWords, i, i + window));
+            if (levenshteinDistance(candidate, keyword) <= threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int typoThreshold(int len) {
+        if (len <= 4) return 1;
+        if (len <= 10) return 2;
+        return 3;
+    }
+
+    private int levenshteinDistance(String a, String b) {
+        if (a.equals(b)) return 0;
+        int n = a.length();
+        int m = b.length();
+        if (n == 0) return m;
+        if (m == 0) return n;
+
+        int[] prev = new int[m + 1];
+        int[] curr = new int[m + 1];
+        for (int j = 0; j <= m; j++) prev[j] = j;
+
+        for (int i = 1; i <= n; i++) {
+            curr[0] = i;
+            char ca = a.charAt(i - 1);
+            for (int j = 1; j <= m; j++) {
+                int cost = (ca == b.charAt(j - 1)) ? 0 : 1;
+                curr[j] = Math.min(
+                        Math.min(curr[j - 1] + 1, prev[j] + 1),
+                        prev[j - 1] + cost
+                );
+            }
+            int[] tmp = prev;
+            prev = curr;
+            curr = tmp;
+        }
+        return prev[m];
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -156,14 +242,28 @@ public class ChatBot {
      * Contoh: "Yohanes 3:16", "Mazmur 23:1-6", "1 Korintus 13:4"
      */
     private String extractVerseReference(String text) {
+        String normalized = normalizeText(text);
         Pattern p = Pattern.compile(
             "(?i)(\\d?\\s*[a-z]+(?:\\s+[a-z]+)?)\\s+(\\d+):(\\d+)(?:-(\\d+))?");
-        Matcher m = p.matcher(text);
+        Matcher m = p.matcher(normalized);
         if (m.find()) {
             String book     = m.group(1).trim();
             String chapter  = m.group(2);
             String verse    = m.group(3);
             String endVerse = m.group(4);
+            return endVerse != null
+                    ? book + " " + chapter + ":" + verse + "-" + endVerse
+                    : book + " " + chapter + ":" + verse;
+        }
+
+        Pattern compact = Pattern.compile(
+                "(?i)(\\d?[a-z]+(?:[a-z-]+)?)(\\d+):(\\d+)(?:-(\\d+))?");
+        Matcher mc = compact.matcher(removeSpaces(normalized));
+        if (mc.find()) {
+            String book = mc.group(1).trim();
+            String chapter = mc.group(2);
+            String verse = mc.group(3);
+            String endVerse = mc.group(4);
             return endVerse != null
                     ? book + " " + chapter + ":" + verse + "-" + endVerse
                     : book + " " + chapter + ":" + verse;
