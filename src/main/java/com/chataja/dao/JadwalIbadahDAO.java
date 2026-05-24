@@ -1,167 +1,281 @@
 package com.chataja.dao;
 
-import com.chataja.db.DatabaseManager;
-import com.chataja.model.JadwalIbadah;
+import com.chataja.model.AyatAlkitab;
 
 import java.sql.*;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Data Access Object untuk tabel jadwal_ibadah.
- * Update: support kolom nama_pendeta.
+ * DAO untuk holybible.db (terpisah dari chataja.db).
+ *
+ * Struktur tabel bible:
+ *   Book       INT  -- nomor kitab 0-65
+ *   Chapter    INT  -- nomor pasal
+ *   Versecount INT  -- nomor ayat
+ *   verse      TEXT -- isi ayat (TB Indonesia)
+ *
+ * File holybible.db harus diletakkan di direktori yang sama
+ * dengan chataja.db (direktori kerja aplikasi).
  */
-public class JadwalIbadahDAO {
+public class AyatAlkitabDAO {
 
-    /** Ambil semua jadwal ibadah beserta nama lokasi (JOIN) */
-    public List<JadwalIbadah> getAll() {
-        List<JadwalIbadah> list = new ArrayList<>();
-        String sql = """
-            SELECT j.*, l.nama_tempat
-            FROM jadwal_ibadah j
-            LEFT JOIN lokasi_gereja l ON j.id_lokasi = l.id_lokasi
-            ORDER BY j.tanggal, j.waktu
-        """;
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            while (rs.next()) list.add(map(rs));
-        } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] getAll error: " + e.getMessage());
-        }
-        return list;
+    private static final String DB_URL = "jdbc:sqlite:holybible.db";
+
+    /** Koneksi ke holybible.db */
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(DB_URL);
     }
 
-    /** Ambil jadwal ibadah yang akan datang (untuk chatbot) */
-    public List<JadwalIbadah> getUpcoming() {
-        List<JadwalIbadah> list = new ArrayList<>();
-        String today = LocalDate.now().toString();
-        String sql = """
-            SELECT j.*, l.nama_tempat
-            FROM jadwal_ibadah j
-            LEFT JOIN lokasi_gereja l ON j.id_lokasi = l.id_lokasi
-            WHERE j.tanggal >= ?
-            ORDER BY j.tanggal, j.waktu
-            LIMIT 10
-        """;
-        try (Connection conn = DatabaseManager.getConnection();
+    // ── MAPPING: nama kitab Indonesia → nomor Book (0-65) ────────────────
+
+    /**
+     * Mapping nama kitab Indonesia ke nomor Book di holybible.db.
+     * Urutan standar Alkitab (0-indexed).
+     */
+    public Integer getBookNumber(String namaKitab) {
+        if (namaKitab == null) return null;
+        return switch (namaKitab.toLowerCase().replaceAll("\\s+", "-").trim()) {
+            // ── Perjanjian Lama ──────────────────────────────────────────
+            case "kej", "kejadian"          -> 0;
+            case "kel", "keluaran"          -> 1;
+            case "ima", "imamat"            -> 2;
+            case "bil", "bilangan"          -> 3;
+            case "ul",  "ulangan"           -> 4;
+            case "yos", "yosua"             -> 5;
+            case "hak", "hakim-hakim"       -> 6;
+            case "rut"                      -> 7;
+            case "1-sam", "1-samuel"        -> 8;
+            case "2-sam", "2-samuel"        -> 9;
+            case "1-raj", "1-raja-raja"     -> 10;
+            case "2-raj", "2-raja-raja"     -> 11;
+            case "1-taw", "1-tawarikh"      -> 12;
+            case "2-taw", "2-tawarikh"      -> 13;
+            case "ezr",  "ezra"             -> 14;
+            case "neh",  "nehemia"          -> 15;
+            case "est",  "ester"            -> 16;
+            case "ayb",  "ayub"             -> 17;
+            case "mzm",  "mazmur", "maz"    -> 18;
+            case "ams",  "amsal"            -> 19;
+            case "pkh",  "pengkhotbah"      -> 20;
+            case "kid",  "kidung-agung"     -> 21;
+            case "yes",  "yesaya"           -> 22;
+            case "yer",  "yeremia"          -> 23;
+            case "rat",  "ratapan"          -> 24;
+            case "yeh",  "yehezkiel"        -> 25;
+            case "dan",  "daniel"           -> 26;
+            case "hos",  "hosea"            -> 27;
+            case "yl",   "yoel"             -> 28;
+            case "am",   "amos"             -> 29;
+            case "ob",   "obaja"            -> 30;
+            case "yun",  "yunus"            -> 31;
+            case "mi",   "mikha"            -> 32;
+            case "nah",  "nahum"            -> 33;
+            case "hab",  "habakuk"          -> 34;
+            case "zef",  "zefanya"          -> 35;
+            case "hag",  "hagai"            -> 36;
+            case "zak",  "zakharia"         -> 37;
+            case "mal",  "maleakhi"         -> 38;
+            // ── Perjanjian Baru ──────────────────────────────────────────
+            case "mat",  "matius"           -> 39;
+            case "mrk",  "markus"           -> 40;
+            case "luk",  "lukas"            -> 41;
+            case "yoh",  "yohanes"          -> 42;
+            case "kis",  "kisah-para-rasul" -> 43;
+            case "rm",   "roma"             -> 44;
+            case "1-kor", "1-korintus"      -> 45;
+            case "2-kor", "2-korintus"      -> 46;
+            case "gal",  "galatia"          -> 47;
+            case "ef",   "efesus"           -> 48;
+            case "flp",  "filipi"           -> 49;
+            case "kol",  "kolose"           -> 50;
+            case "1-tes", "1-tesalonika"    -> 51;
+            case "2-tes", "2-tesalonika"    -> 52;
+            case "1-tim", "1-timotius"      -> 53;
+            case "2-tim", "2-timotius"      -> 54;
+            case "tit",  "titus"            -> 55;
+            case "flm",  "filemon"          -> 56;
+            case "ibr",  "ibrani"           -> 57;
+            case "yak",  "yakobus"          -> 58;
+            case "1-ptr", "1-petrus"        -> 59;
+            case "2-ptr", "2-petrus"        -> 60;
+            case "1-yoh", "1-yohanes"       -> 61;
+            case "2-yoh", "2-yohanes"       -> 62;
+            case "3-yoh", "3-yohanes"       -> 63;
+            case "yud",  "yudas"            -> 64;
+            case "why",  "wahyu"            -> 65;
+            default -> null;
+        };
+    }
+
+    /**
+     * Mapping nomor Book (0-65) → nama kitab Indonesia.
+     */
+    public String getNamaKitab(int bookNumber) {
+        String[] names = {
+            "Kejadian", "Keluaran", "Imamat", "Bilangan", "Ulangan",
+            "Yosua", "Hakim-hakim", "Rut", "1 Samuel", "2 Samuel",
+            "1 Raja-raja", "2 Raja-raja", "1 Tawarikh", "2 Tawarikh", "Ezra",
+            "Nehemia", "Ester", "Ayub", "Mazmur", "Amsal",
+            "Pengkhotbah", "Kidung Agung", "Yesaya", "Yeremia", "Ratapan",
+            "Yehezkiel", "Daniel", "Hosea", "Yoel", "Amos",
+            "Obaja", "Yunus", "Mikha", "Nahum", "Habakuk",
+            "Zefanya", "Hagai", "Zakharia", "Maleakhi",
+            "Matius", "Markus", "Lukas", "Yohanes", "Kisah Para Rasul",
+            "Roma", "1 Korintus", "2 Korintus", "Galatia", "Efesus",
+            "Filipi", "Kolose", "1 Tesalonika", "2 Tesalonika", "1 Timotius",
+            "2 Timotius", "Titus", "Filemon", "Ibrani", "Yakobus",
+            "1 Petrus", "2 Petrus", "1 Yohanes", "2 Yohanes", "3 Yohanes",
+            "Yudas", "Wahyu"
+        };
+        if (bookNumber >= 0 && bookNumber < names.length) return names[bookNumber];
+        return "Kitab " + bookNumber;
+    }
+
+    // ── QUERY METHODS ─────────────────────────────────────────────────────
+
+    /**
+     * Ambil single ayat.
+     * Contoh: getAyat(42, 3, 16) → Yohanes 3:16
+     */
+    public AyatAlkitab getAyat(int book, int chapter, int verse) {
+        String sql = "SELECT Book, Chapter, Versecount, verse FROM bible " +
+                     "WHERE Book=? AND Chapter=? AND Versecount=?";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, today);
+            ps.setInt(1, book);
+            ps.setInt(2, chapter);
+            ps.setInt(3, verse);
             ResultSet rs = ps.executeQuery();
-            while (rs.next()) list.add(map(rs));
+            if (rs.next()) {
+                AyatAlkitab a = map(rs);
+                a.setNamaKitab(getNamaKitab(book));
+                return a;
+            }
         } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] getUpcoming error: " + e.getMessage());
+            System.err.println("[AyatAlkitabDAO] getAyat error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Ambil range ayat.
+     * Contoh: getRangeAyat(18, 23, 1, 6) → Mazmur 23:1-6
+     */
+    public List<AyatAlkitab> getRangeAyat(int book, int chapter, int verseStart, int verseEnd) {
+        List<AyatAlkitab> list = new ArrayList<>();
+        String sql = "SELECT Book, Chapter, Versecount, verse FROM bible " +
+                     "WHERE Book=? AND Chapter=? AND Versecount BETWEEN ? AND ? " +
+                     "ORDER BY Versecount";
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, book);
+            ps.setInt(2, chapter);
+            ps.setInt(3, verseStart);
+            ps.setInt(4, verseEnd);
+            ResultSet rs = ps.executeQuery();
+            String namaKitab = getNamaKitab(book);
+            while (rs.next()) {
+                AyatAlkitab a = map(rs);
+                a.setNamaKitab(namaKitab);
+                list.add(a);
+            }
+        } catch (SQLException e) {
+            System.err.println("[AyatAlkitabDAO] getRangeAyat error: " + e.getMessage());
         }
         return list;
     }
 
     /**
-     * Ambil jadwal ibadah untuk minggu ini saja
-     * (dari hari ini sampai hari Minggu terdekat).
-     * Jika hari ini sudah Minggu, tampilkan jadwal hari ini saja.
+     * Ambil seluruh satu pasal.
      */
-    public List<JadwalIbadah> getThisWeek() {
-        List<JadwalIbadah> list = new ArrayList<>();
-        LocalDate today = LocalDate.now();
-
-        // Hitung hari Minggu terdekat (akhir minggu)
-        java.time.DayOfWeek todayDow = today.getDayOfWeek();
-        int daysUntilSunday = (java.time.DayOfWeek.SUNDAY.getValue() - todayDow.getValue() + 7) % 7;
-        // Jika hari ini Minggu, daysUntilSunday = 0 → tampilkan hari ini
-        LocalDate endOfWeek = today.plusDays(daysUntilSunday);
-
-        String sql = """
-            SELECT j.*, l.nama_tempat
-            FROM jadwal_ibadah j
-            LEFT JOIN lokasi_gereja l ON j.id_lokasi = l.id_lokasi
-            WHERE j.tanggal >= ? AND j.tanggal <= ?
-            ORDER BY j.tanggal, j.waktu
-        """;
-        try (Connection conn = DatabaseManager.getConnection();
+    public List<AyatAlkitab> getPasal(int book, int chapter) {
+        List<AyatAlkitab> list = new ArrayList<>();
+        String sql = "SELECT Book, Chapter, Versecount, verse FROM bible " +
+                     "WHERE Book=? AND Chapter=? ORDER BY Versecount";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, today.toString());
-            ps.setString(2, endOfWeek.toString());
+            ps.setInt(1, book);
+            ps.setInt(2, chapter);
             ResultSet rs = ps.executeQuery();
-            while (rs.next()) list.add(map(rs));
+            String namaKitab = getNamaKitab(book);
+            while (rs.next()) {
+                AyatAlkitab a = map(rs);
+                a.setNamaKitab(namaKitab);
+                list.add(a);
+            }
         } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] getThisWeek error: " + e.getMessage());
+            System.err.println("[AyatAlkitabDAO] getPasal error: " + e.getMessage());
         }
         return list;
     }
 
-    public boolean insert(JadwalIbadah j) {
-        String sql = """
-            INSERT INTO jadwal_ibadah
-                (id_jadwal, nama_ibadah, tanggal, waktu, id_lokasi, id_user, nama_pendeta)
-            VALUES (?,?,?,?,?,?,?)
-        """;
-        try (Connection conn = DatabaseManager.getConnection();
+    /**
+     * Cari teks ayat yang mengandung kata tertentu.
+     * Contoh: searchAyat("kasih") → semua ayat yang mengandung kata "kasih"
+     */
+    public List<AyatAlkitab> searchAyat(String keyword, int limit) {
+        List<AyatAlkitab> list = new ArrayList<>();
+        String sql = "SELECT Book, Chapter, Versecount, verse FROM bible " +
+                     "WHERE verse LIKE ? ORDER BY Book, Chapter, Versecount LIMIT ?";
+        try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, generateId());
-            ps.setString(2, j.getNamaIbadah());
-            ps.setString(3, j.getTanggal() != null ? j.getTanggal().toString() : null);
-            ps.setString(4, j.getWaktu()   != null ? j.getWaktu().toString()   : null);
-            ps.setString(5, j.getIdLokasi());
-            ps.setString(6, j.getIdUser());
-            ps.setString(7, j.getNamaPendeta());
-            return ps.executeUpdate() > 0;
+            ps.setString(1, "%" + keyword + "%");
+            ps.setInt(2, limit);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                AyatAlkitab a = map(rs);
+                a.setNamaKitab(getNamaKitab(a.getBook()));
+                list.add(a);
+            }
         } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] insert error: " + e.getMessage());
+            System.err.println("[AyatAlkitabDAO] searchAyat error: " + e.getMessage());
+        }
+        return list;
+    }
+
+    /**
+     * Ambil ayat acak.
+     */
+    public AyatAlkitab getAyatAcak() {
+        String sql = "SELECT Book, Chapter, Versecount, verse FROM bible " +
+                     "ORDER BY RANDOM() LIMIT 1";
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            if (rs.next()) {
+                AyatAlkitab a = map(rs);
+                a.setNamaKitab(getNamaKitab(a.getBook()));
+                return a;
+            }
+        } catch (SQLException e) {
+            System.err.println("[AyatAlkitabDAO] getAyatAcak error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Cek apakah holybible.db bisa diakses.
+     */
+    public boolean isAvailable() {
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.executeQuery("SELECT 1 FROM bible LIMIT 1");
+            return true;
+        } catch (SQLException e) {
+            System.err.println("[AyatAlkitabDAO] DB tidak tersedia: " + e.getMessage());
             return false;
         }
     }
 
-    public boolean update(JadwalIbadah j) {
-        String sql = """
-            UPDATE jadwal_ibadah
-            SET nama_ibadah=?, tanggal=?, waktu=?, id_lokasi=?, nama_pendeta=?
-            WHERE id_jadwal=?
-        """;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, j.getNamaIbadah());
-            ps.setString(2, j.getTanggal() != null ? j.getTanggal().toString() : null);
-            ps.setString(3, j.getWaktu()   != null ? j.getWaktu().toString()   : null);
-            ps.setString(4, j.getIdLokasi());
-            ps.setString(5, j.getNamaPendeta());
-            ps.setString(6, j.getIdJadwal());
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] update error: " + e.getMessage());
-            return false;
-        }
-    }
+    // ── HELPER ────────────────────────────────────────────────────────────
 
-    public boolean delete(String id) {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "DELETE FROM jadwal_ibadah WHERE id_jadwal=?")) {
-            ps.setString(1, id);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            System.err.println("[JadwalIbadahDAO] delete error: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private JadwalIbadah map(ResultSet rs) throws SQLException {
-        JadwalIbadah j = new JadwalIbadah();
-        j.setIdJadwal(rs.getString("id_jadwal"));
-        j.setNamaIbadah(rs.getString("nama_ibadah"));
-        String tgl = rs.getString("tanggal");
-        if (tgl != null) j.setTanggal(LocalDate.parse(tgl));
-        String wkt = rs.getString("waktu");
-        if (wkt != null) j.setWaktu(LocalTime.parse(wkt.length() == 5 ? wkt : wkt.substring(0, 5)));
-        j.setIdLokasi(rs.getString("id_lokasi"));
-        j.setIdUser(rs.getString("id_user"));
-        try { j.setNamaLokasi(rs.getString("nama_tempat")); }  catch (Exception ignored) {}
-        try { j.setNamaPendeta(rs.getString("nama_pendeta")); } catch (Exception ignored) {}
-        return j;
-    }
-
-    private String generateId() {
-        return "JDW" + String.format("%05d", System.currentTimeMillis() % 100000);
+    private AyatAlkitab map(ResultSet rs) throws SQLException {
+        AyatAlkitab a = new AyatAlkitab();
+        a.setBook(rs.getInt("Book"));
+        a.setChapter(rs.getInt("Chapter"));
+        a.setVersecount(rs.getInt("Versecount"));
+        a.setVerse(rs.getString("verse"));
+        return a;
     }
 }
