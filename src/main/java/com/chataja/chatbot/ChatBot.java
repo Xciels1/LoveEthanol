@@ -16,6 +16,10 @@ import java.util.regex.Pattern;
 public class ChatBot {
 
     private final String namaBot = "ChatAja";
+    private static final String[] BAD_WORDS = {
+            "anjing", "bangsat", "bajingan", "tolol", "goblok",
+            "bodoh", "kampret", "brengsek", "kontol", "memek","fuck","shit","dongo"
+    };
     private User loggedUser;
 
     // ── DAO ──────────────────────────────────────────────────────────────
@@ -50,6 +54,10 @@ public class ChatBot {
     public String prosesPertanyaan(String input) {
         if (!validasiInput(input)) {
             return "⚠️ Mohon masukkan pertanyaan yang valid (tidak boleh kosong).";
+        }
+
+        if (containsBadWord(input)) {
+            return responBadWord();
         }
 
         // Deteksi semua intent yang cocok
@@ -367,6 +375,23 @@ public class ChatBot {
         return false;
     }
 
+    private boolean containsBadWord(String text) {
+        String normalized = normalizeText(text);
+        for (String badWord : BAD_WORDS) {
+            Pattern p = Pattern.compile("\\b" + Pattern.quote(normalizeText(badWord)) + "\\b");
+            if (p.matcher(normalized).find()) return true;
+        }
+        return false;
+    }
+
+    private String responBadWord() {
+        return "⚠️ Sebaiknya Anda menggunakan kata yang sopan dan pantas.\n\n"
+                + "Efesus 4:29:\n"
+                + "\"Janganlah ada perkataan kotor keluar dari mulutmu, "
+                + "tetapi pakailah perkataan yang baik untuk membangun, di mana perlu, "
+                + "supaya mereka yang mendengarnya, beroleh kasih karunia.\"";
+    }
+
     private String normalizeText(String text) {
         if (text == null) return "";
         return text.toLowerCase()
@@ -606,7 +631,7 @@ public class ChatBot {
         List<JadwalIbadah> list = jadwalIbadahDAO.getUpcoming();
         return formatJadwalIbadahList(list, "📅 JADWAL IBADAH GEREJA",
                 "📅 Jadwal ibadah belum tersedia saat ini.\n"
-                + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.");
+                        + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.");
     }
 
     // ── Jadwal Ibadah: minggu ini saja ──────────────────────────────

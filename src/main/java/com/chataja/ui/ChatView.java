@@ -101,7 +101,7 @@ public class ChatView extends VBox {
         HBox.setHgrow(inputField, Priority.ALWAYS);
         inputWrapper.getChildren().add(inputField);
 
-        sendBtn = new Button("➤");
+        sendBtn = new Button("⮞");
         sendBtn.setFont(Font.font("System", FontWeight.BOLD, 15));
         sendBtn.setPrefSize(42, 42);
         sendBtn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
