@@ -5,8 +5,11 @@ import com.chataja.model.*;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,7 +28,10 @@ public class ChatBot {
 
     // ── Enum Intent ───────────────────────────────────────────────────────
     private enum Intent {
-        JADWAL_IBADAH, LOKASI, RENUNGAN, PENGUMUMAN, KONTAK,
+        JADWAL_IBADAH,
+        JADWAL_IBADAH_MINGGU_INI,   // khusus "ibadah minggu ini"
+        JADWAL_IBADAH_MINGGU_DEPAN, // khusus "ibadah minggu depan"
+        LOKASI, RENUNGAN, PENGUMUMAN, KONTAK,
         JADWAL_TUGAS, SAPAAN, BANTUAN, TIDAK_DIKENALI,
         AYAT_ALKITAB, DOA, TENTANG_BOT, UCAPAN_BERKAT
     }
@@ -45,8 +51,17 @@ public class ChatBot {
         if (!validasiInput(input)) {
             return "⚠️ Mohon masukkan pertanyaan yang valid (tidak boleh kosong).";
         }
-        Intent intent = deteksiIntent(normalizeText(input));
-        return displayJawaban(intent, input);
+
+        // Deteksi semua intent yang cocok
+        List<Intent> intents = deteksiMultiIntent(normalizeText(input));
+
+        // Jika hanya satu intent → respons biasa (single intent)
+        if (intents.size() == 1) {
+            return displayJawaban(intents.get(0), input);
+        }
+
+        // Multi-intent → format dengan separator per bagian
+        return buildMultiIntentResponse(intents, input);
     }
 
     public boolean validasiInput(String input) {
@@ -55,7 +70,9 @@ public class ChatBot {
 
     public String displayJawaban(Intent intent, String input) {
         return switch (intent) {
-            case JADWAL_IBADAH -> responJadwalIbadah();
+            case JADWAL_IBADAH             -> responJadwalIbadah();
+            case JADWAL_IBADAH_MINGGU_INI  -> responJadwalIbadahMingguIni();
+            case JADWAL_IBADAH_MINGGU_DEPAN -> responJadwalIbadahMingguDepan();
             case LOKASI        -> responLokasi();
             case RENUNGAN      -> responRenungan();
             case PENGUMUMAN    -> responPengumuman();
@@ -95,6 +112,16 @@ public class ChatBot {
                 "devotional", "pesan firman", "renungan minggu");
     }
 
+    /**
+     * Cek apakah input pengguna mengandung lebih dari 1 intent (multi-intent).
+     * Dipakai oleh ChatView agar multi-intent tetap diproses via prosesPertanyaan().
+     */
+    public boolean isMultiIntentQuery(String input) {
+        if (!validasiInput(input)) return false;
+        List<Intent> intents = deteksiMultiIntent(normalizeText(input));
+        return intents.size() >= 2;
+    }
+
     // ────────────────────────────────────────────────────────────────────
     //  INTENT DETECTION
     // ────────────────────────────────────────────────────────────────────
@@ -126,6 +153,16 @@ public class ChatBot {
                 "minta doa", "tolong doakan", "mohon doa"))
             return Intent.DOA;
 
+        // ── Jadwal Ibadah: deteksi "minggu ini" / "minggu depan" LEBIH DULU ──
+        if (containsAny(text, "ibadah minggu depan", "jadwal ibadah minggu depan",
+                "kebaktian minggu depan", "jadwal minggu depan"))
+            return Intent.JADWAL_IBADAH_MINGGU_DEPAN;
+
+        if (containsAny(text, "ibadah minggu ini", "jadwal ibadah minggu ini",
+                "kebaktian minggu ini", "jadwal minggu ini"))
+            return Intent.JADWAL_IBADAH_MINGGU_INI;
+
+        // ── Jadwal Ibadah umum (tampilkan semua upcoming) ──
         if (containsAny(text, "jadwal ibadah", "ibadah", "kebaktian", "misa",
                 "jadwal minggu", "ibadah minggu", "jadwal gereja",
                 "jam ibadah", "kapan ibadah", "ibadah hari ini",
@@ -162,6 +199,164 @@ public class ChatBot {
             return Intent.JADWAL_TUGAS;
 
         return Intent.TIDAK_DIKENALI;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    //  MULTI-INTENT DETECTION & RESPONSE
+    // ────────────────────────────────────────────────────────────────────
+
+    /**
+     * Mendeteksi SEMUA intent yang cocok di dalam satu kalimat input.
+     * Urutan di LinkedHashSet menjaga urutan deteksi.
+     * Jika tidak ada intent konten yang cocok, fallback ke deteksiIntent biasa.
+     */
+    private List<Intent> deteksiMultiIntent(String text) {
+        Set<Intent> found = new LinkedHashSet<>();
+
+        // Intent konten (yang bisa di-gabung dalam multi-intent)
+        if (containsAny(text, "pengumuman", "pemberitahuan",
+                "warta jemaat", "warta gereja", "berita gereja", "info gereja"))
+            found.add(Intent.PENGUMUMAN);
+
+        if (containsAny(text, "renungan", "devotion", "renungan harian",
+                "kotbah", "khotbah", "firman hari ini",
+                "bahan renungan", "renungan pagi", "renungan malam",
+                "devotional", "pesan firman", "renungan minggu"))
+            found.add(Intent.RENUNGAN);
+
+        // ── Jadwal Ibadah: deteksi sub-intent "minggu ini" / "minggu depan" lebih dulu ──
+        boolean jadwalSubIntentFound = false;
+        if (containsAny(text, "ibadah minggu depan", "jadwal ibadah minggu depan",
+                "kebaktian minggu depan", "jadwal minggu depan")) {
+            found.add(Intent.JADWAL_IBADAH_MINGGU_DEPAN);
+            jadwalSubIntentFound = true;
+        }
+        if (containsAny(text, "ibadah minggu ini", "jadwal ibadah minggu ini",
+                "kebaktian minggu ini", "jadwal minggu ini")) {
+            found.add(Intent.JADWAL_IBADAH_MINGGU_INI);
+            jadwalSubIntentFound = true;
+        }
+        // Hanya masuk intent umum jika tidak ada sub-intent spesifik
+        if (!jadwalSubIntentFound && containsAny(text, "jadwal ibadah", "ibadah", "kebaktian", "misa",
+                "jadwal minggu", "ibadah minggu", "jadwal gereja",
+                "jam ibadah", "kapan ibadah", "ibadah hari ini",
+                "ibadah pagi", "ibadah malam", "kebaktian pemuda",
+                "ibadah remaja", "ibadah anak", "ibadah umum",
+                "kebaktian minggu", "liturgi"))
+            found.add(Intent.JADWAL_IBADAH);
+
+        if (containsAny(text, "lokasi", "alamat", "di mana", "dimana",
+                "tempat ibadah", "rumah ibadah", "gereja mana",
+                "google maps", "gps gereja", "rute", "arah ke", "jalan ke"))
+            found.add(Intent.LOKASI);
+
+        if (containsAny(text, "kontak", "hubungi", "telepon", "tlp",
+                "nomor", "pengurus", "contact", "hp", "whatsapp", "wa",
+                "gembala", "pendeta", "pastor", "nomor gereja"))
+            found.add(Intent.KONTAK);
+
+        if (containsAny(text, "tugas", "jadwal tugas", "pelayanan saya",
+                "jadwal pelayanan", "tugas majelis", "jadwal saya", "piket"))
+            found.add(Intent.JADWAL_TUGAS);
+
+        if ((containsAny(text, "ayat", "alkitab", "kitab suci",
+                "firman tuhan", "baca alkitab", "cari ayat"))
+                || extractVerseReference(text) != null)
+            found.add(Intent.AYAT_ALKITAB);
+
+        if (containsAny(text, "doa", "berdoa", "doakan",
+                "minta doa", "tolong doakan", "mohon doa"))
+            found.add(Intent.DOA);
+
+        // Jika ditemukan ≥ 2 intent konten → multi-intent
+        if (found.size() >= 2) {
+            return new ArrayList<>(found);
+        }
+
+        // Fallback ke deteksi intent tunggal
+        List<Intent> single = new ArrayList<>();
+        single.add(deteksiIntent(text));
+        return single;
+    }
+
+    /**
+     * Membuat respons multi-intent dengan format separator per bagian.
+     * Setiap bagian dibatasi garis pemisah dan label intent.
+     * Jika isi bagian kosong, tampilkan "-".
+     */
+    private String buildMultiIntentResponse(List<Intent> intents, String input) {
+        StringBuilder sb = new StringBuilder();
+        String garis = "═".repeat(40);
+
+        for (int i = 0; i < intents.size(); i++) {
+            Intent intent = intents.get(i);
+            String label  = getIntentLabel(intent);
+            String isi    = getIntentContent(intent, input);
+
+            sb.append(garis).append("\n");
+            sb.append(label).append("\n");
+            sb.append(garis).append("\n\n");
+
+            if (isi == null || isi.trim().isEmpty()) {
+                sb.append("-");
+            } else {
+                sb.append(isi.trim());
+            }
+
+            if (i < intents.size() - 1) {
+                sb.append("\n\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Mengembalikan isi konten untuk satu intent.
+     * Berbeda dari displayJawaban karena mengembalikan null/kosong
+     * alih-alih pesan "belum tersedia" — supaya bisa ditampilkan sebagai "-".
+     */
+    private String getIntentContent(Intent intent, String input) {
+        return switch (intent) {
+            case JADWAL_IBADAH             -> responJadwalIbadah();
+            case JADWAL_IBADAH_MINGGU_INI  -> responJadwalIbadahMingguIni();
+            case JADWAL_IBADAH_MINGGU_DEPAN -> responJadwalIbadahMingguDepan();
+            case LOKASI        -> responLokasi();
+            case RENUNGAN      -> responRenungan();
+            case PENGUMUMAN    -> responPengumuman();
+            case KONTAK        -> responKontak();
+            case JADWAL_TUGAS  -> responJadwalTugas();
+            case AYAT_ALKITAB  -> responAyatAlkitab(input);
+            case DOA           -> responDoa();
+            case TENTANG_BOT   -> responTentangBot();
+            case UCAPAN_BERKAT -> responUcapanBerkat();
+            case SAPAAN        -> responSapaan();
+            case BANTUAN       -> responBantuan();
+            default            -> null;
+        };
+    }
+
+    /**
+     * Label tampilan untuk setiap intent di header bagian multi-intent.
+     */
+    private String getIntentLabel(Intent intent) {
+        return switch (intent) {
+            case PENGUMUMAN                -> "📢 PENGUMUMAN";
+            case RENUNGAN                  -> "📖 RENUNGAN";
+            case JADWAL_IBADAH             -> "📅 JADWAL IBADAH";
+            case JADWAL_IBADAH_MINGGU_INI  -> "📅 JADWAL IBADAH MINGGU INI";
+            case JADWAL_IBADAH_MINGGU_DEPAN -> "📅 JADWAL IBADAH MINGGU DEPAN";
+            case LOKASI        -> "📍 LOKASI";
+            case KONTAK        -> "📞 KONTAK";
+            case JADWAL_TUGAS  -> "📋 JADWAL TUGAS";
+            case AYAT_ALKITAB  -> "📖 AYAT ALKITAB";
+            case DOA           -> "🙏 DOA";
+            case TENTANG_BOT   -> "ℹ️ TENTANG BOT";
+            case UCAPAN_BERKAT -> "🙏 BERKAT";
+            case SAPAAN        -> "👋 SAPAAN";
+            case BANTUAN       -> "ℹ️ BANTUAN";
+            default            -> "❓ LAINNYA";
+        };
     }
 
     private boolean containsAny(String text, String... keywords) {
@@ -406,17 +601,49 @@ public class ChatBot {
         return pengumumanDAO.getLatest(limit);
     }
 
+    // ── Jadwal Ibadah: semua upcoming ─────────────────────────────────
     private String responJadwalIbadah() {
         List<JadwalIbadah> list = jadwalIbadahDAO.getUpcoming();
-        if (list.isEmpty()) {
-            return "📅 Jadwal ibadah belum tersedia saat ini.\n"
-                    + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.";
-        }
+        return formatJadwalIbadahList(list, "📅 JADWAL IBADAH GEREJA",
+                "📅 Jadwal ibadah belum tersedia saat ini.\n"
+                + "Silakan hubungi pengurus gereja untuk informasi lebih lanjut.");
+    }
+
+    // ── Jadwal Ibadah: minggu ini saja ──────────────────────────────
+    private String responJadwalIbadahMingguIni() {
+        List<JadwalIbadah> list = jadwalIbadahDAO.getThisWeek();
+        return formatJadwalIbadahList(list, "📅 JADWAL IBADAH MINGGU INI",
+                "📅 Tidak ada jadwal ibadah untuk minggu ini.");
+    }
+
+    // ── Jadwal Ibadah: minggu depan saja ────────────────────────────
+    private String responJadwalIbadahMingguDepan() {
+        List<JadwalIbadah> list = jadwalIbadahDAO.getNextWeek();
+        return formatJadwalIbadahList(list, "📅 JADWAL IBADAH MINGGU DEPAN",
+                "📅 Belum ada jadwal ibadah untuk minggu depan.");
+    }
+
+    /**
+     * Helper: format daftar jadwal ibadah menjadi teks chatbot.
+     * Dipakai oleh responJadwalIbadah, responJadwalIbadahMingguIni,
+     * dan responJadwalIbadahMingguDepan agar tidak ada duplikasi kode.
+     *
+     * @param list       daftar jadwal dari DAO
+     * @param judul      judul header (misal "📅 JADWAL IBADAH MINGGU INI")
+     * @param pesanKosong pesan jika list kosong
+     */
+    private String formatJadwalIbadahList(List<JadwalIbadah> list,
+                                          String judul, String pesanKosong) {
+        if (list.isEmpty()) return pesanKosong;
+
         StringBuilder sb = new StringBuilder();
-        sb.append("📅 JADWAL IBADAH GEREJA\n");
+        sb.append(judul).append("\n");
         sb.append("─".repeat(35)).append("\n\n");
+
         String lastDate = "";
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", new Locale("id", "ID"));
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern(
+                "EEEE, dd MMMM yyyy", new Locale("id", "ID"));
+
         for (JadwalIbadah j : list) {
             String dateKey = j.getTanggal() != null ? j.getTanggal().toString() : "";
             if (!dateKey.equals(lastDate)) {
