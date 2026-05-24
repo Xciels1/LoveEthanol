@@ -147,7 +147,7 @@ public class MajelisView extends VBox {
 
 
 
-        // ── Foto upload (real FileChooser) ───────────────────────────────
+        // ── Foto upload (real FileChooserr) ───────────────────────────────
         final String[] selectedFotoPath = {null};
 
         // Preview image
