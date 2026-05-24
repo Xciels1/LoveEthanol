@@ -1,375 +1,1160 @@
 package com.chataja.ui;
 
-import com.chataja.chatbot.ChatBot;
-import com.chataja.model.Pengumuman;
-import com.chataja.model.Renungan;
-import javafx.animation.FadeTransition;
-import javafx.animation.TranslateTransition;
+import com.chataja.dao.*;
+import com.chataja.model.*;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
-import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.text.*;
-import javafx.util.Duration;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 
-import java.io.File;
+import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /**
- * Panel antarmuka chatbot utama.
- * Desain: dark theme sesuai Figma.
+ * Panel manajemen data untuk Admin.
+ * Fitur:
+ *  - Kelola Jadwal Ibadah + informasi pendeta bertugas
+ *  - Kelola Jadwal Tugas  + dropdown nama majelis
+ *  - Kelola Akun          + tambah/edit/hapus admin & majelis
  */
-public class ChatView extends VBox {
+public class AdminView extends VBox {
 
-    private final ChatBot chatBot;
-    private VBox messageContainer;
-    private ScrollPane scrollPane;
-    private TextField inputField;
-    private Button sendBtn;
+    private User currentUser;
+    private final JadwalIbadahDAO jadwalIbadahDAO = new JadwalIbadahDAO();
+    private final JadwalTugasDAO  jadwalTugasDAO  = new JadwalTugasDAO();
+    private final LokasiDAO       lokasiDAO       = new LokasiDAO();
+    private final UserDAO         userDAO         = new UserDAO();
 
-    private static final String BG        = "#3B3B3B";
-    private static final String CARD      = "#484848";
-    private static final String INPUT_BG  = "#5C5C5C";
-    private static final String ACCENT    = "#5B8DEF";
-    private static final String USER_BG   = "#5B8DEF";
-    private static final String BOT_BG    = "#4A4A4A";
+    // Four panes switched by nav
+    private VBox paneIbadah;
+    private VBox paneTugas;
+    private VBox paneLokasi;
+    private VBox paneAkun;
+    private StackPane contentStack;
 
-    public ChatView(ChatBot chatBot) {
-        this.chatBot = chatBot;
+    // List containers
+    private VBox listIbadahBox;
+    private VBox listTugasBox;
+    private VBox listLokasiBox;
+    private VBox listAkunBox;
+
+    // Colors (dark theme)
+    private static final String BG      = "#3B3B3B";
+    private static final String CARD    = "#484848";
+    private static final String INPUT   = "#5C5C5C";
+    private static final String ACCENT  = "#5B8DEF";
+    private static final String DANGER  = "#E74C3C";
+    private static final String SUCCESS = "#27AE60";
+    private static final String DIVIDER = "#666666";
+
+    public AdminView(User user) {
+        this.currentUser = user;
         buildUI();
-        addWelcomeMessage();
+        setVisible(false);
+        setManaged(false);
+    }
+
+    public void setUser(User user) { this.currentUser = user; }
+
+    public void showJadwalIbadah() {
+        paneIbadah.setVisible(true);  paneIbadah.setManaged(true);
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
+    }
+
+    public void showJadwalTugas() {
+        paneTugas .setVisible(true);  paneTugas.setManaged(true);
+        paneIbadah.setVisible(false); paneIbadah.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
+    }
+
+    public void showLokasiGereja() {
+        paneLokasi.setVisible(true);  paneLokasi.setManaged(true);
+        paneIbadah.setVisible(false); paneIbadah.setManaged(false);
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
+    }
+
+    public void showKelolAkun() {
+        paneAkun  .setVisible(true);  paneAkun.setManaged(true);
+        paneIbadah.setVisible(false); paneIbadah.setManaged(false);
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+    }
+
+    public void refresh() {
+        refreshListIbadah();
+        refreshListTugas();
+        refreshListLokasi();
+        refreshListAkun();
     }
 
     private void buildUI() {
         setStyle("-fx-background-color: " + BG + ";");
         VBox.setVgrow(this, Priority.ALWAYS);
 
-        // ── Header ──────────────────────────────────────────────────────
-        HBox header = buildPageHeader("Chat bot - jemaat");
+        contentStack = new StackPane();
+        VBox.setVgrow(contentStack, Priority.ALWAYS);
+
+        paneIbadah = buildJadwalIbadahPane();
+        paneTugas  = buildJadwalTugasPane();
+        paneLokasi = buildLokasiGerejaPane();
+        paneAkun   = buildKelolAkunPane();
+
+        // Default: paneIbadah visible
+        paneTugas .setVisible(false); paneTugas.setManaged(false);
+        paneLokasi.setVisible(false); paneLokasi.setManaged(false);
+        paneAkun  .setVisible(false); paneAkun.setManaged(false);
+
+        contentStack.getChildren().addAll(paneIbadah, paneTugas, paneLokasi, paneAkun);
+        getChildren().add(contentStack);
+
+        refreshListIbadah();
+        refreshListTugas();
+        refreshListLokasi();
+        refreshListAkun();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PANE 1: JADWAL IBADAH  (+nama pendeta)
+    // ════════════════════════════════════════════════════════════════════
+
+    private VBox buildJadwalIbadahPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
+
+        HBox header = ChatView.buildPageHeader("Kelola Jadwal Ibadah");
         VBox.setMargin(header, new Insets(12, 12, 0, 12));
 
-        // ── Message container ────────────────────────────────────────────
-        messageContainer = new VBox(14);
-        messageContainer.setPadding(new Insets(20, 24, 20, 24));
+        ScrollPane scroll = buildScrollPane();
+        VBox content = buildScrollContent();
 
-        scrollPane = new ScrollPane(messageContainer);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: " + BG + "; -fx-background: " + BG + "; " +
-                "-fx-border-width: 0;");
-        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        content.getChildren().add(sectionTitle("Tambah Jadwal Ibadah"));
+        content.getChildren().add(buildIbadahFormCard());
+        content.getChildren().add(sectionTitle("Daftar Ibadah"));
 
-        messageContainer.heightProperty().addListener((obs, old, nv) ->
-                scrollPane.setVvalue(1.0));
+        listIbadahBox = new VBox(8);
+        listIbadahBox.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10; -fx-padding:8;");
+        content.getChildren().add(listIbadahBox);
 
-        // ── Input area ───────────────────────────────────────────────────
-        HBox inputArea = new HBox(10);
-        inputArea.setPadding(new Insets(10, 16, 14, 16));
-        inputArea.setAlignment(Pos.CENTER);
-        inputArea.setStyle("-fx-background-color: " + BG + "; " +
-                "-fx-border-color: #555555; -fx-border-width: 1 0 0 0;");
-
-        // Menu button
-        Button btnMenu = new Button("☰");
-        btnMenu.setFont(Font.font("System", FontWeight.BOLD, 14));
-        btnMenu.setPrefSize(42, 42);
-        btnMenu.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;");
-        btnMenu.setOnAction(e -> showQuickMenu());
-
-        // Input wrapper
-        HBox inputWrapper = new HBox(0);
-        inputWrapper.setAlignment(Pos.CENTER);
-        inputWrapper.setStyle("-fx-background-color: " + INPUT_BG + "; " +
-                "-fx-background-radius: 10; -fx-border-width: 0;");
-        HBox.setHgrow(inputWrapper, Priority.ALWAYS);
-
-        inputField = new TextField();
-        inputField.setPromptText("Ajukan pertanyaan...");
-        inputField.setStyle("-fx-background-color: transparent; -fx-border-width: 0; " +
-                "-fx-padding: 11 14 11 16; -fx-font-size: 13; -fx-text-fill: white; " +
-                "-fx-prompt-text-fill: rgba(255,255,255,0.45);");
-        inputField.setOnAction(e -> sendMessage(inputField.getText()));
-        HBox.setHgrow(inputField, Priority.ALWAYS);
-        inputWrapper.getChildren().add(inputField);
-
-        sendBtn = new Button("➤");
-        sendBtn.setFont(Font.font("System", FontWeight.BOLD, 15));
-        sendBtn.setPrefSize(42, 42);
-        sendBtn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;");
-        sendBtn.setOnMouseEntered(e -> sendBtn.setStyle(
-                "-fx-background-color: #3D6FD4; -fx-text-fill: white; " +
-                        "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;"));
-        sendBtn.setOnMouseExited(e -> sendBtn.setStyle(
-                "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; " +
-                        "-fx-background-radius: 10; -fx-cursor: hand; -fx-border-width: 0;"));
-        sendBtn.setOnAction(e -> sendMessage(inputField.getText()));
-
-        inputArea.getChildren().addAll(btnMenu, inputWrapper, sendBtn);
-
-        getChildren().addAll(header, scrollPane, inputArea);
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
     }
 
-    /** Page header with logo + title, dark rounded bar */
-    static HBox buildPageHeader(String title) {
-        HBox header = new HBox(14);
-        header.setPadding(new Insets(14, 20, 14, 20));
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.setStyle("-fx-background-color: #424242; -fx-background-radius: 12;");
-        header.setMaxWidth(Double.MAX_VALUE);
+    private VBox buildIbadahFormCard() {
+        TextField fNama    = styledField("Nama Ibadah");
+        TextField fLokasi  = styledField("Lokasi Ibadah");
+        TextField fPendeta = styledField("Nama Pendeta yang Bertugas");  // ← BARU
 
-        // Logo icon dari file gambar
-        ImageView logoIcon = new ImageView();
-        try {
-            Image img = new Image(ChatView.class.getResourceAsStream("/logo.png"));
-            logoIcon.setImage(img);
-            logoIcon.setFitWidth(36);
-            logoIcon.setFitHeight(36);
-            logoIcon.setPreserveRatio(true);
-            logoIcon.setSmooth(true);
-        } catch (Exception ignored) {}
+        TextField fHari  = styledSmallField("DD");
+        TextField fBulan = styledSmallField("MM");
+        TextField fTahun = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+        TextField fJam   = styledSmallField("00");
+        TextField fMenit = styledSmallField("00");
 
-        Text titleText = new Text(title);
-        titleText.setFill(Color.WHITE);
-        titleText.setFont(Font.font("System", FontWeight.BOLD, 17));
+        LocalDate today = LocalDate.now();
+        fHari .setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+        fJam.setText("07"); fMenit.setText("00");
 
-        Region rightSpacer = new Region();
-        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
 
-        header.getChildren().addAll(logoIcon, titleText, rightSpacer);
-        return header;
-    }
+        HBox wktRow = new HBox(6, fJam,
+                colon(), fMenit,
+                wibLabel());
+        wktRow.setAlignment(Pos.CENTER_LEFT);
 
-    // ── Messaging ────────────────────────────────────────────────────────
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(180);
+        grid.getColumnConstraints().addAll(c0, c1);
 
-    private void sendMessage(String text) {
-        if (text == null || text.trim().isEmpty()) return;
-        String trimmed = text.trim();
-        addUserMessage(trimmed);
-        inputField.clear();
+        grid.add(cardLabel("Nama Ibadah"),     0, 0); grid.add(fNama,    0, 1);
+        grid.add(cardLabel("Tanggal Ibadah"),  1, 0); grid.add(tglRow,   1, 1);
+        grid.add(cardLabel("Lokasi Ibadah"),   0, 2); grid.add(fLokasi,  0, 3);
+        grid.add(cardLabel("Waktu Ibadah"),    1, 2); grid.add(wktRow,   1, 3);
+        // Pendeta — span 2 kolom
+        grid.add(cardLabel("Nama Pendeta yang Bertugas"), 0, 4);
+        GridPane.setColumnSpan(cardLabel("Nama Pendeta yang Bertugas"), 2);
+        grid.add(fPendeta, 0, 5);
+        GridPane.setColumnSpan(fPendeta, 2);
 
-        HBox typingIndicator = buildTypingIndicator();
-        messageContainer.getChildren().add(typingIndicator);
+        Button btnTambah = primaryButton("Tambahkan  Jadwal");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(6, 0, 0, 0));
 
-        javafx.animation.PauseTransition delay =
-                new javafx.animation.PauseTransition(Duration.millis(700));
-        delay.setOnFinished(e -> {
-            messageContainer.getChildren().remove(typingIndicator);
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
 
-            // Prioritaskan renderer pengumuman bergambar dengan deteksi intent dari ChatBot
-            String lower = trimmed.toLowerCase();
-            if (chatBot.isPengumumanQuery(trimmed)) {
-                handlePengumumanResponse();
-            } else if (chatBot.isRenunganQuery(trimmed)) {
-                handleRenunganResponse();
-            } else {
-                String response = chatBot.prosesPertanyaan(trimmed);
-                addBotMessage(response);
+        btnTambah.setOnAction(e -> {
+            try {
+                String nama = fNama.getText().trim();
+                if (nama.isEmpty()) {
+                    lblStatus.setText("⚠ Nama ibadah wajib diisi.");
+                    lblStatus.setTextFill(Color.web("#FFB347")); return;
+                }
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                LocalTime wkt = LocalTime.of(
+                        Integer.parseInt(fJam.getText().trim()),
+                        Integer.parseInt(fMenit.getText().trim()));
+
+                String idLokasi = findOrCreateLokasi(fLokasi.getText().trim());
+
+                JadwalIbadah j = new JadwalIbadah();
+                j.setNamaIbadah(nama);
+                j.setTanggal(tgl);
+                j.setWaktu(wkt);
+                j.setIdLokasi(idLokasi);
+                j.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+                j.setNamaPendeta(fPendeta.getText().trim());   // ← BARU
+
+                if (jadwalIbadahDAO.insert(j)) {
+                    lblStatus.setText("✅ Jadwal berhasil disimpan!");
+                    lblStatus.setTextFill(Color.web("#55EFC4"));
+                    fNama.clear(); fLokasi.clear(); fPendeta.clear();
+                    refreshListIbadah();
+                }
+            } catch (Exception ex) {
+                lblStatus.setText("⚠ Periksa isian tanggal dan waktu.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
             }
         });
-        delay.play();
+
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10;");
+        return card;
     }
 
-    private boolean containsKeyword(String text, String... keywords) {
-        for (String kw : keywords) {
-            if (text.contains(kw)) return true;
-        }
-        return false;
-    }
-
-    private void handleRenunganResponse() {
-        Renungan r = chatBot.getRenunganHariIni();
-        if (r != null) {
-            String text = r.tampilkan();
-            String imagePath = r.hasFoto() ? r.getFotoPath() : null;
-            addBotMessage(text, imagePath);
-        } else {
-            addBotMessage("📖 Renungan harian sedang disiapkan.\nSilakan cek kembali nanti.");
-        }
-    }
-
-    private void handlePengumumanResponse() {
-        List<Pengumuman> list = chatBot.getLatestPengumuman(5);
-
+    private void refreshListIbadah() {
+        if (listIbadahBox == null) return;
+        listIbadahBox.getChildren().clear();
+        List<JadwalIbadah> list = jadwalIbadahDAO.getAll();
         if (list.isEmpty()) {
-            addBotMessage("📢 Belum ada pengumuman saat ini.");
+            listIbadahBox.getChildren().add(emptyLabel("Belum ada data jadwal ibadah."));
+            return;
+        }
+        for (JadwalIbadah item : list) listIbadahBox.getChildren().add(buildIbadahRow(item));
+    }
+
+    private HBox buildIbadahRow(JadwalIbadah item) {
+        HBox row = baseRow();
+
+        Label lNama    = rowLabel(item.getNamaIbadah(), true);
+        HBox.setHgrow(lNama, Priority.ALWAYS);
+
+        Label lLokasi  = rowLabel(item.getNamaLokasi() != null ? item.getNamaLokasi() : "-", false);
+        lLokasi.setPrefWidth(130);
+
+        // Pendeta — tampilkan di baris
+        String pendeta = (item.getNamaPendeta() != null && !item.getNamaPendeta().isBlank())
+                ? item.getNamaPendeta() : "-";
+        Label lPendeta = rowLabel(pendeta, false);
+        lPendeta.setPrefWidth(130);
+
+        Label lWkt = rowLabel(item.getWaktuStr(), false);   lWkt.setPrefWidth(80);
+        Label lTgl = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(90);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditIbadahDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) { jadwalIbadahDAO.delete(item.getIdJadwal()); refreshListIbadah(); }
+        });
+
+        row.getChildren().addAll(
+                lNama, divider(), lLokasi, divider(), lPendeta,
+                divider(), lWkt, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus);
+        return row;
+    }
+
+    private void showEditIbadahDialog(JadwalIbadah item) {
+        Dialog<JadwalIbadah> dlg = new Dialog<>();
+        dlg.setTitle("Edit Jadwal Ibadah");
+
+        TextField fNama    = new TextField(item.getNamaIbadah());
+        DatePicker fTgl    = new DatePicker(item.getTanggal());
+        TextField fWaktu   = new TextField(item.getWaktu() != null
+                ? item.getWaktu().toString().substring(0, 5) : "");
+        TextField fPendeta = new TextField(item.getNamaPendeta() != null
+                ? item.getNamaPendeta() : "");   // ← BARU
+        fPendeta.setPromptText("Nama pendeta yang bertugas");
+
+        ComboBox<String> fLokasi = new ComboBox<>();
+        refreshLokasiCombo(fLokasi);
+        if (item.getNamaLokasi() != null)
+            fLokasi.setValue(item.getIdLokasi() + " | " + item.getNamaLokasi());
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Nama Ibadah"),   0, 0); grid.add(fNama,    1, 0);
+        grid.add(dlgLabel("Tanggal"),       0, 1); grid.add(fTgl,     1, 1);
+        grid.add(dlgLabel("Waktu (HH:MM)"), 0, 2); grid.add(fWaktu,   1, 2);
+        grid.add(dlgLabel("Lokasi"),        0, 3); grid.add(fLokasi,  1, 3);
+        grid.add(dlgLabel("Nama Pendeta"),  0, 4); grid.add(fPendeta, 1, 4);  // ← BARU
+
+        dlg.getDialogPane().setContent(grid);
+        dlg.getDialogPane().setPrefWidth(440);
+        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+
+        dlg.setResultConverter(b -> {
+            if (b == ok) {
+                item.setNamaIbadah(fNama.getText().trim());
+                item.setTanggal(fTgl.getValue());
+                try { item.setWaktu(LocalTime.parse(fWaktu.getText().trim())); }
+                catch (Exception ignored) {}
+                if (fLokasi.getValue() != null)
+                    item.setIdLokasi(fLokasi.getValue().split("\\|")[0].trim());
+                item.setNamaPendeta(fPendeta.getText().trim());   // ← BARU
+                return item;
+            }
+            return null;
+        });
+        dlg.showAndWait().ifPresent(j -> { jadwalIbadahDAO.update(j); refreshListIbadah(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PANE 2: JADWAL TUGAS  (dropdown nama majelis)
+    // ════════════════════════════════════════════════════════════════════
+
+    private VBox buildJadwalTugasPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
+
+        HBox header = ChatView.buildPageHeader("Kelola Jadwal Tugas");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
+
+        ScrollPane scroll = buildScrollPane();
+        VBox content = buildScrollContent();
+
+        content.getChildren().add(sectionTitle("Tambah Tugas"));
+        content.getChildren().add(buildTugasFormCard());
+        content.getChildren().add(sectionTitle("Daftar Tugas"));
+
+        listTugasBox = new VBox(8);
+        listTugasBox.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10; -fx-padding:8;");
+        content.getChildren().add(listTugasBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildTugasFormCard() {
+        // ── Dropdown nama majelis (bukan input ID manual) ──────────────
+        // Map: nama → id_user
+        LinkedHashMap<String, String> majelisMap = new LinkedHashMap<>();
+        ComboBox<String> fMajelis = new ComboBox<>();
+        fMajelis.setPromptText("Pilih Majelis...");
+        fMajelis.setMaxWidth(Double.MAX_VALUE);
+        fMajelis.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
+                "-fx-background-radius:8; -fx-border-width:0;");
+        userDAO.getAllMajelis().forEach(u -> {
+            majelisMap.put(u.getNama(), u.getIdUser());
+            fMajelis.getItems().add(u.getNama());
+        });
+
+        TextField fTugas = styledField("Deskripsi tugas");
+
+        TextField fHari  = styledSmallField("DD");
+        TextField fBulan = styledSmallField("MM");
+        TextField fTahun = styledSmallField("YYYY"); fTahun.setPrefWidth(60);
+        TextField fJam   = styledSmallField("00");
+        TextField fMenit = styledSmallField("00");
+
+        LocalDate today = LocalDate.now();
+        fHari .setText(String.format("%02d", today.getDayOfMonth()));
+        fBulan.setText(String.format("%02d", today.getMonthValue()));
+        fTahun.setText(String.valueOf(today.getYear()));
+        fJam.setText("09"); fMenit.setText("00");
+
+        HBox tglRow = new HBox(6, fHari, fBulan, fTahun);
+        tglRow.setAlignment(Pos.CENTER_LEFT);
+        HBox wktRow = new HBox(6, fJam, colon(), fMenit, wibLabel());
+        wktRow.setAlignment(Pos.CENTER_LEFT);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(200);
+        grid.getColumnConstraints().addAll(c0, c1);
+
+        grid.add(cardLabel("Majelis Bertugas"), 0, 0);
+        grid.add(fMajelis, 0, 1);
+        grid.add(cardLabel("Tanggal Tugas"), 1, 0);
+        grid.add(tglRow, 1, 1);
+        grid.add(cardLabel("Tugas"), 0, 2);
+        grid.add(cardLabel("Waktu Ibadah"), 1, 2);
+        grid.add(fTugas, 0, 3);
+        grid.add(wktRow, 1, 3);
+
+        Button btnTambah = primaryButton("Tambahkan  Tugas");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
+
+        btnTambah.setOnAction(e -> {
+            try {
+                // Validasi majelis dipilih
+                String selectedNama = fMajelis.getValue();
+                if (selectedNama == null || selectedNama.isBlank()) {
+                    lblStatus.setText("⚠ Pilih majelis terlebih dahulu.");
+                    lblStatus.setTextFill(Color.web("#FFB347")); return;
+                }
+                String idUser = majelisMap.get(selectedNama);
+                if (idUser == null) {
+                    lblStatus.setText("⚠ Majelis tidak ditemukan di database.");
+                    lblStatus.setTextFill(Color.web("#FFB347")); return;
+                }
+
+                String tugas = fTugas.getText().trim();
+                if (tugas.isEmpty()) {
+                    lblStatus.setText("⚠ Deskripsi tugas wajib diisi.");
+                    lblStatus.setTextFill(Color.web("#FFB347")); return;
+                }
+
+                LocalDate tgl = LocalDate.of(
+                        Integer.parseInt(fTahun.getText().trim()),
+                        Integer.parseInt(fBulan.getText().trim()),
+                        Integer.parseInt(fHari.getText().trim()));
+                LocalTime wkt = LocalTime.of(
+                        Integer.parseInt(fJam.getText().trim()),
+                        Integer.parseInt(fMenit.getText().trim()));
+
+                JadwalTugas jt = new JadwalTugas();
+                jt.setIdUser(idUser);
+                jt.setTugas(tugas);
+                jt.setTanggal(tgl);
+                jt.setWaktuIbadah(wkt);
+
+                if (jadwalTugasDAO.insert(jt)) {
+                    lblStatus.setText("✅ Tugas berhasil disimpan!");
+                    lblStatus.setTextFill(Color.web("#55EFC4"));
+                    fMajelis.setValue(null); fTugas.clear();
+                    refreshListTugas();
+                }
+            } catch (Exception ex) {
+                lblStatus.setText("⚠ Periksa isian tanggal dan waktu.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+            }
+        });
+
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10;");
+        return card;
+    }
+
+    private void refreshListTugas() {
+        if (listTugasBox == null) return;
+        listTugasBox.getChildren().clear();
+        List<JadwalTugas> list = jadwalTugasDAO.getAll();
+        if (list.isEmpty()) {
+            listTugasBox.getChildren().add(emptyLabel("Belum ada data jadwal tugas."));
+            return;
+        }
+        for (JadwalTugas item : list) listTugasBox.getChildren().add(buildTugasRow(item));
+    }
+
+    private HBox buildTugasRow(JadwalTugas item) {
+        HBox row = baseRow();
+
+        String nama = item.getNamaMajelis() != null ? item.getNamaMajelis() : item.getIdUser();
+        Label lNama  = rowLabel(nama, true);            lNama.setPrefWidth(120);
+        Label lTugas = rowLabel(item.getTugas(), false);
+        HBox.setHgrow(lTugas, Priority.ALWAYS);
+        Label lWkt = rowLabel(item.getWaktuStr(), false);   lWkt.setPrefWidth(80);
+        Label lTgl = rowLabel(item.getTanggalStr(), false); lTgl.setPrefWidth(90);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditTugasDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) { jadwalTugasDAO.delete(item.getIdTugas()); refreshListTugas(); }
+        });
+
+        row.getChildren().addAll(lNama, divider(), lTugas, divider(), lWkt, divider(), lTgl,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus);
+        return row;
+    }
+
+    private void showEditTugasDialog(JadwalTugas item) {
+        Dialog<JadwalTugas> dlg = new Dialog<>();
+        dlg.setTitle("Edit Jadwal Tugas");
+
+        // Dropdown nama majelis
+        LinkedHashMap<String, String> majelisMap = new LinkedHashMap<>();
+        ComboBox<String> fMajelis = new ComboBox<>();
+        fMajelis.setMaxWidth(Double.MAX_VALUE);
+        userDAO.getAllMajelis().forEach(u -> {
+            majelisMap.put(u.getNama(), u.getIdUser());
+            fMajelis.getItems().add(u.getNama());
+        });
+        // Set nilai saat ini
+        if (item.getNamaMajelis() != null) {
+            fMajelis.setValue(item.getNamaMajelis());
+        } else {
+            // Cari nama dari id_user
+            majelisMap.forEach((nama, id) -> {
+                if (id.equals(item.getIdUser())) fMajelis.setValue(nama);
+            });
+        }
+
+        TextField  fTugas = new TextField(item.getTugas());
+        DatePicker fTgl   = new DatePicker(item.getTanggal());
+        TextField  fWaktu = new TextField(
+                item.getWaktuStr().replace(" WIB", "").equals("-")
+                        ? "" : item.getWaktuStr().replace(" WIB", ""));
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Majelis"),       0, 0); grid.add(fMajelis, 1, 0);
+        grid.add(dlgLabel("Tugas"),         0, 1); grid.add(fTugas,   1, 1);
+        grid.add(dlgLabel("Tanggal"),       0, 2); grid.add(fTgl,     1, 2);
+        grid.add(dlgLabel("Waktu (HH:MM)"),0, 3); grid.add(fWaktu,   1, 3);
+
+        dlg.getDialogPane().setContent(grid);
+        dlg.getDialogPane().setPrefWidth(420);
+        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+
+        dlg.setResultConverter(b -> {
+            if (b == ok) {
+                item.setTugas(fTugas.getText().trim());
+                item.setTanggal(fTgl.getValue());
+                String selNama = fMajelis.getValue();
+                if (selNama != null) {
+                    String idUser = majelisMap.get(selNama);
+                    if (idUser != null) item.setIdUser(idUser);
+                }
+                try { item.setWaktuIbadah(LocalTime.parse(fWaktu.getText().trim())); }
+                catch (Exception ignored) {}
+                return item;
+            }
+            return null;
+        });
+        dlg.showAndWait().ifPresent(jt -> { jadwalTugasDAO.update(jt); refreshListTugas(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PANE 3: LOKASI GEREJA
+    // ════════════════════════════════════════════════════════════════════
+
+    private VBox buildLokasiGerejaPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
+
+        HBox header = ChatView.buildPageHeader("Kelola Lokasi Gereja");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
+
+        ScrollPane scroll = buildScrollPane();
+        VBox content = buildScrollContent();
+
+        content.getChildren().add(sectionTitle("Tambah Lokasi Gereja"));
+        content.getChildren().add(buildLokasiFormCard());
+        content.getChildren().add(sectionTitle("Daftar Lokasi"));
+
+        listLokasiBox = new VBox(8);
+        listLokasiBox.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10; -fx-padding:8;");
+        content.getChildren().add(listLokasiBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildLokasiFormCard() {
+        TextField fNamaTempat = styledField("Nama Tempat");
+        TextField fAlamat     = styledField("Alamat Lengkap");
+        TextField fKontak     = styledField("Kontak (No. Telp / Email)");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().add(c0);
+
+        grid.add(cardLabel("Nama Tempat"),  0, 0);
+        grid.add(fNamaTempat, 0, 1);
+        grid.add(cardLabel("Alamat"),       0, 2);
+        grid.add(fAlamat,     0, 3);
+        grid.add(cardLabel("Kontak"),       0, 4);
+        grid.add(fKontak,     0, 5);
+
+        Button btnTambah = primaryButton("Tambahkan  Lokasi");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+        btnRow.setPadding(new Insets(6, 0, 0, 0));
+
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
+
+        btnTambah.setOnAction(e -> {
+            String nama = fNamaTempat.getText().trim();
+            String alamat = fAlamat.getText().trim();
+            String kontak = fKontak.getText().trim();
+
+            if (nama.isEmpty()) {
+                lblStatus.setText("⚠ Nama tempat wajib diisi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+                return;
+            }
+            if (alamat.isEmpty()) {
+                lblStatus.setText("⚠ Alamat wajib diisi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+                return;
+            }
+
+            Lokasi lokasi = new Lokasi();
+            lokasi.setNamaTempat(nama);
+            lokasi.setAlamat(alamat);
+            lokasi.setKontak(kontak);
+            lokasi.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+
+            if (lokasiDAO.insert(lokasi)) {
+                lblStatus.setText("✅ Lokasi berhasil disimpan!");
+                lblStatus.setTextFill(Color.web("#55EFC4"));
+                fNamaTempat.clear();
+                fAlamat.clear();
+                fKontak.clear();
+                refreshListLokasi();
+            } else {
+                lblStatus.setText("⚠ Gagal menyimpan lokasi.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+            }
+        });
+
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10;");
+        return card;
+    }
+
+    private void refreshListLokasi() {
+        if (listLokasiBox == null) return;
+        listLokasiBox.getChildren().clear();
+        List<Lokasi> list = lokasiDAO.getAll();
+        if (list.isEmpty()) {
+            listLokasiBox.getChildren().add(emptyLabel("Belum ada data lokasi gereja."));
+            return;
+        }
+        for (Lokasi item : list) listLokasiBox.getChildren().add(buildLokasiRow(item));
+    }
+
+    private HBox buildLokasiRow(Lokasi item) {
+        HBox row = baseRow();
+
+        Label lNama = rowLabel(item.getNamaTempat(), true);
+        lNama.setPrefWidth(180);
+
+        Label lAlamat = rowLabel(item.getAlamat() != null ? item.getAlamat() : "-", false);
+        HBox.setHgrow(lAlamat, Priority.ALWAYS);
+
+        Label lKontak = rowLabel(item.getKontak() != null && !item.getKontak().isEmpty()
+                ? item.getKontak() : "-", false);
+        lKontak.setPrefWidth(140);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        btnEdit.setOnAction(e -> showEditLokasiDialog(item));
+        btnHapus.setOnAction(e -> {
+            if (confirmDelete()) {
+                lokasiDAO.delete(item.getIdLokasi());
+                refreshListLokasi();
+            }
+        });
+
+        row.getChildren().addAll(
+                lNama, divider(), lAlamat, divider(), lKontak,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus);
+        return row;
+    }
+
+    private void showEditLokasiDialog(Lokasi item) {
+        Dialog<Lokasi> dlg = new Dialog<>();
+        dlg.setTitle("Edit Lokasi Gereja");
+
+        TextField fNama   = new TextField(item.getNamaTempat());
+        TextField fAlamat = new TextField(item.getAlamat());
+        TextField fKontak = new TextField(item.getKontak() != null ? item.getKontak() : "");
+
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Nama Tempat"), 0, 0); grid.add(fNama,   1, 0);
+        grid.add(dlgLabel("Alamat"),      0, 1); grid.add(fAlamat, 1, 1);
+        grid.add(dlgLabel("Kontak"),      0, 2); grid.add(fKontak, 1, 2);
+
+        dlg.getDialogPane().setContent(grid);
+        dlg.getDialogPane().setPrefWidth(440);
+        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+
+        dlg.setResultConverter(b -> {
+            if (b == ok) {
+                item.setNamaTempat(fNama.getText().trim());
+                item.setAlamat(fAlamat.getText().trim());
+                item.setKontak(fKontak.getText().trim());
+                return item;
+            }
+            return null;
+        });
+        dlg.showAndWait().ifPresent(l -> { lokasiDAO.update(l); refreshListLokasi(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  PANE 4: KELOLA AKUN (Tambah / Edit / Hapus admin & majelis)
+    // ════════════════════════════════════════════════════════════════════
+
+    private VBox buildKelolAkunPane() {
+        VBox pane = new VBox(0);
+        pane.setStyle("-fx-background-color: " + BG + ";");
+        VBox.setVgrow(pane, Priority.ALWAYS);
+
+        HBox header = ChatView.buildPageHeader("Kelola Akun");
+        VBox.setMargin(header, new Insets(12, 12, 0, 12));
+
+        ScrollPane scroll = buildScrollPane();
+        VBox content = buildScrollContent();
+
+        content.getChildren().add(sectionTitle("Tambah Akun Baru"));
+        content.getChildren().add(buildAkunFormCard());
+        content.getChildren().add(sectionTitle("Daftar Akun Admin & Majelis"));
+
+        listAkunBox = new VBox(8);
+        listAkunBox.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10; -fx-padding:8;");
+        content.getChildren().add(listAkunBox);
+
+        scroll.setContent(content);
+        pane.getChildren().addAll(header, scroll);
+        return pane;
+    }
+
+    private VBox buildAkunFormCard() {
+        TextField     fNama     = styledField("Nama lengkap");
+        TextField     fUsername = styledField("Username");
+        PasswordField fPassword = styledPasswordField("Password (min. 6 karakter)");
+        PasswordField fConfirm  = styledPasswordField("Konfirmasi password");
+
+        ComboBox<String> fRole = new ComboBox<>();
+        fRole.getItems().addAll("Majelis", "Admin");
+        fRole.setValue("Majelis");
+        fRole.setMaxWidth(Double.MAX_VALUE);
+        fRole.setStyle("-fx-background-color:" + INPUT + "; -fx-background-radius:8; " +
+                "-fx-border-width:0; -fx-text-fill:white;");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(16); grid.setVgap(12);
+        ColumnConstraints c0 = new ColumnConstraints(); c0.setHgrow(Priority.ALWAYS);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(c0, c1);
+
+        grid.add(cardLabel("Nama Lengkap"), 0, 0);      grid.add(fNama,     0, 1);
+        grid.add(cardLabel("Role"),         1, 0);      grid.add(fRole,     1, 1);
+        grid.add(cardLabel("Username"),     0, 2);      grid.add(fUsername, 0, 3);
+        grid.add(cardLabel("Password"),     1, 2);      grid.add(fPassword, 1, 3);
+        grid.add(cardLabel("Konfirmasi Password"), 0, 4);
+        GridPane.setColumnSpan(cardLabel("Konfirmasi Password"), 2);
+        grid.add(fConfirm, 0, 5);
+        GridPane.setColumnSpan(fConfirm, 2);
+
+        Button btnTambah = primaryButton("Tambahkan  Akun");
+        HBox btnRow = new HBox(btnTambah);
+        btnRow.setAlignment(Pos.CENTER);
+
+        Label lblStatus = new Label();
+        lblStatus.setTextFill(Color.WHITE);
+
+        btnTambah.setOnAction(e -> {
+            String nama     = fNama.getText().trim();
+            String username = fUsername.getText().trim();
+            String password = fPassword.getText().trim();
+            String confirm  = fConfirm.getText().trim();
+            String role     = fRole.getValue().toLowerCase();
+
+            if (nama.isEmpty() || username.isEmpty() || password.isEmpty()) {
+                lblStatus.setText("⚠ Nama, username, dan password wajib diisi.");
+                lblStatus.setTextFill(Color.web("#FFB347")); return;
+            }
+            if (!password.equals(confirm)) {
+                lblStatus.setText("⚠ Password dan konfirmasi tidak cocok.");
+                lblStatus.setTextFill(Color.web("#FFB347")); return;
+            }
+            if (password.length() < 6) {
+                lblStatus.setText("⚠ Password minimal 6 karakter.");
+                lblStatus.setTextFill(Color.web("#FFB347")); return;
+            }
+
+            User newUser = "admin".equals(role) ? new Admin() : new Majelis();
+            newUser.setNama(nama);
+            newUser.setUsername(username);
+            newUser.setPassword(password);
+            newUser.setRole(role);
+
+            if (userDAO.insert(newUser)) {
+                lblStatus.setText("✅ Akun " + fRole.getValue() + " berhasil ditambahkan!");
+                lblStatus.setTextFill(Color.web("#55EFC4"));
+                fNama.clear(); fUsername.clear();
+                fPassword.clear(); fConfirm.clear();
+                fRole.setValue("Majelis");
+                refreshListAkun();
+            } else {
+                lblStatus.setText("⚠ Gagal menyimpan. Username mungkin sudah digunakan.");
+                lblStatus.setTextFill(Color.web("#FFB347"));
+            }
+        });
+
+        VBox card = new VBox(12, grid, btnRow, lblStatus);
+        card.setPadding(new Insets(16));
+        card.setStyle("-fx-background-color:" + CARD + "; -fx-background-radius:10;");
+        return card;
+    }
+
+    private void refreshListAkun() {
+        if (listAkunBox == null) return;
+        listAkunBox.getChildren().clear();
+
+        List<User> admins  = userDAO.getUsersByRole("admin");
+        List<User> majelis = userDAO.getUsersByRole("majelis");
+
+        if (admins.isEmpty() && majelis.isEmpty()) {
+            listAkunBox.getChildren().add(emptyLabel("Belum ada akun terdaftar."));
             return;
         }
 
-        // Tampilkan header
-        StringBuilder sb = new StringBuilder();
-        String line = ("─".repeat(35));
-        sb.append("📢 PENGUMUMAN GEREJA\n");
-        sb.append("─".repeat(35)).append("\n\n");
-
-        // Tampilkan setiap pengumuman dengan gambar jika ada
-        for (int i = 0; i < list.size(); i++) {
-            Pengumuman p = list.get(i);
-            String imagePath = p.hasFoto() ? p.getFotoPath() : null;
-
-            String text = p.tampilkan();
-
-            if (i == 0) {
-                addBotMessage(sb.toString() + text, imagePath);
-            } else {
-                addBotMessage(line+"\n" + text, imagePath);
-            }
+        // Divider label
+        if (!admins.isEmpty()) {
+            Label lbAdmin = new Label("  Admin");
+            lbAdmin.setTextFill(Color.web("#AAAAAA"));
+            lbAdmin.setFont(Font.font("System", FontWeight.BOLD, 11));
+            listAkunBox.getChildren().add(lbAdmin);
+            admins.forEach(u -> listAkunBox.getChildren().add(buildAkunRow(u)));
+        }
+        if (!majelis.isEmpty()) {
+            Label lbMaj = new Label("  Majelis");
+            lbMaj.setTextFill(Color.web("#AAAAAA"));
+            lbMaj.setFont(Font.font("System", FontWeight.BOLD, 11));
+            lbMaj.setPadding(new Insets(8, 0, 0, 0));
+            listAkunBox.getChildren().add(lbMaj);
+            majelis.forEach(u -> listAkunBox.getChildren().add(buildAkunRow(u)));
         }
     }
 
-    private void showQuickMenu() {
-        ContextMenu menu = new ContextMenu();
-        String[] items = {"Jadwal ibadah", "Lokasi gereja", "Renungan hari ini", "Pengumuman gereja"};
-        for (String item : items) {
-            MenuItem mi = new MenuItem(item);
-            mi.setOnAction(e -> sendMessage(item));
-            menu.getItems().add(mi);
+    private HBox buildAkunRow(User user) {
+        HBox row = baseRow();
+
+        // Highlight akun sendiri
+        if (currentUser != null && user.getIdUser().equals(currentUser.getIdUser())) {
+            row.setStyle("-fx-background-color: #4A5E7A; -fx-background-radius:8;");
         }
-        menu.show(inputField.getScene().getWindow(),
-                inputField.localToScreen(0, 0).getX(),
-                inputField.localToScreen(0, 0).getY() - 130);
+
+        Label lNama     = rowLabel(user.getNama(), true);    lNama.setPrefWidth(160);
+        Label lUsername = rowLabel(user.getUsername(), false); lUsername.setPrefWidth(130);
+        String roleStr  = user.getRole().substring(0, 1).toUpperCase() + user.getRole().substring(1);
+        Label lRole     = rowLabel(roleStr, false);           lRole.setPrefWidth(80);
+
+        Button btnEdit  = actionBtn("✎ Edit",   ACCENT);
+        Button btnHapus = actionBtn("🗑 Hapus", DANGER);
+
+        // Nonaktifkan hapus untuk akun sendiri
+        boolean isSelf = currentUser != null && user.getIdUser().equals(currentUser.getIdUser());
+        btnHapus.setDisable(isSelf);
+        if (isSelf) {
+            btnHapus.setStyle("-fx-background-color:#666666; -fx-text-fill:white; " +
+                    "-fx-background-radius:6; -fx-cursor:default;");
+        }
+
+        btnEdit.setOnAction(e -> showEditAkunDialog(user));
+        btnHapus.setOnAction(e -> {
+            if (isSelf) return;
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Konfirmasi Hapus");
+            confirm.setHeaderText(null);
+            confirm.setContentText("Hapus akun \"" + user.getNama() + "\" (" + roleStr + ")?");
+            confirm.showAndWait().filter(r -> r == ButtonType.OK).ifPresent(r -> {
+                userDAO.delete(user.getIdUser());
+                refreshListAkun();
+            });
+        });
+
+        Label selfBadge = new Label(isSelf ? " (Anda)" : "");
+        selfBadge.setTextFill(Color.web("#7FB3D3"));
+        selfBadge.setFont(Font.font("System", 11));
+
+        row.getChildren().addAll(lNama, selfBadge, divider(), lUsername, divider(), lRole,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                btnEdit, spacer(6), btnHapus);
+        return row;
     }
 
-    public void addUserMessage(String text) {
-        HBox wrapper = new HBox();
-        wrapper.setAlignment(Pos.CENTER_RIGHT);
-        wrapper.setPadding(new Insets(0, 0, 0, 80));
+    private void showEditAkunDialog(User item) {
+        Dialog<User> dlg = new Dialog<>();
+        dlg.setTitle("Edit Akun — " + item.getNama());
 
-        Label lbl = new Label(text);
-        lbl.setWrapText(true);
-        lbl.setFont(Font.font("System", 13));
-        lbl.setTextFill(Color.WHITE);
-        lbl.setStyle("-fx-background-color: " + USER_BG + "; " +
-                "-fx-background-radius: 18 18 4 18; -fx-padding: 10 16 10 16;");
-        lbl.setMaxWidth(460);
+        TextField     fNama     = new TextField(item.getNama());
+        TextField     fUsername = new TextField(item.getUsername());
+        PasswordField fPassword = new PasswordField();
+        fPassword.setPromptText("Kosongkan jika tidak ingin ganti password");
+        PasswordField fConfirm  = new PasswordField();
+        fConfirm.setPromptText("Konfirmasi password baru");
 
-        DropShadow shadow = new DropShadow();
-        shadow.setColor(Color.color(0.36, 0.55, 0.94, 0.3));
-        shadow.setRadius(8); shadow.setOffsetY(2);
-        lbl.setEffect(shadow);
+        ComboBox<String> fRole = new ComboBox<>();
+        fRole.getItems().addAll("Majelis", "Admin");
+        fRole.setValue(item.getRole().substring(0, 1).toUpperCase() + item.getRole().substring(1));
+        // Cegah ganti role akun sendiri
+        boolean isSelf = currentUser != null && item.getIdUser().equals(currentUser.getIdUser());
+        fRole.setDisable(isSelf);
 
-        VBox bubble = new VBox(4, lbl);
-        Label ts = new Label(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
-        ts.setFont(Font.font("System", 10));
-        ts.setTextFill(Color.web("#AAAAAA"));
-        HBox tsRow = new HBox(ts);
-        tsRow.setAlignment(Pos.CENTER_RIGHT);
-        bubble.getChildren().add(tsRow);
+        GridPane grid = dialogGrid();
+        grid.add(dlgLabel("Nama Lengkap"), 0, 0); grid.add(fNama,     1, 0);
+        grid.add(dlgLabel("Username"),     0, 1); grid.add(fUsername, 1, 1);
+        grid.add(dlgLabel("Role"),         0, 2); grid.add(fRole,     1, 2);
+        grid.add(dlgLabel("Password Baru"),0, 3); grid.add(fPassword, 1, 3);
+        grid.add(dlgLabel("Konfirmasi"),   0, 4); grid.add(fConfirm,  1, 4);
 
-        wrapper.getChildren().add(bubble);
-        animateIn(wrapper, true);
-        messageContainer.getChildren().add(wrapper);
-    }
+        if (isSelf) {
+            Label info = new Label("ℹ️ Role tidak bisa diubah untuk akun sendiri.");
+            info.setFont(Font.font("System", 11));
+            info.setTextFill(Color.web("#718096"));
+            grid.add(info, 0, 5);
+            GridPane.setColumnSpan(info, 2);
+        }
 
-    public void addBotMessage(String text) {
-        addBotMessage(text, null);
-    }
+        dlg.getDialogPane().setContent(grid);
+        dlg.getDialogPane().setPrefWidth(430);
+        ButtonType ok = new ButtonType("Simpan", ButtonBar.ButtonData.OK_DONE);
+        dlg.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
 
-    public void addBotMessage(String text, String imagePath) {
-        HBox wrapper = new HBox(12);
-        wrapper.setAlignment(Pos.TOP_LEFT);
-        wrapper.setPadding(new Insets(0, 80, 0, 0));
-
-        VBox contentBox = new VBox(8);
-        contentBox.setMaxWidth(500);
-        contentBox.setStyle("-fx-background-color: " + BOT_BG + "; " +
-                "-fx-background-radius: 4 18 18 18; -fx-padding: 8;");
-
-        // Text label
-        Label lbl = new Label(text);
-        lbl.setWrapText(true);
-        lbl.setFont(Font.font("System", 13));
-        lbl.setTextFill(Color.WHITE);
-        lbl.setStyle("-fx-background-color: transparent; -fx-padding: 2 8 6 8;");
-        lbl.setMaxWidth(500);
-
-        DropShadow shadow = new DropShadow();
-        shadow.setColor(Color.color(0, 0, 0, 0.2));
-        shadow.setRadius(8); shadow.setOffsetY(2);
-        contentBox.setEffect(shadow);
-
-        // Image jika ada
-        if (imagePath != null && !imagePath.isBlank()) {
-            try {
-                File imgFile = new File(imagePath);
-                if (imgFile.exists()) {
-                    ImageView imageView = new ImageView(new Image(imgFile.toURI().toString()));
-                    imageView.setFitWidth(300);
-                    imageView.setPreserveRatio(true);
-                    imageView.setSmooth(true);
-                    imageView.setStyle("-fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 2);");
-
-                    // Container gambar menyatu dalam bubble yang sama
-                    StackPane imageContainer = new StackPane(imageView);
-                    imageContainer.setStyle("-fx-background-color: transparent; -fx-padding: 2 4 2 4;");
-
-                    contentBox.getChildren().add(imageContainer);
+        dlg.setResultConverter(b -> {
+            if (b == ok) {
+                if (fNama.getText().trim().isEmpty() || fUsername.getText().trim().isEmpty()) {
+                    ChatAjaApp.showAlert(Alert.AlertType.ERROR, "Error", "Nama dan username wajib diisi.");
+                    return null;
                 }
-            } catch (Exception e) {
-                System.err.println("Error loading image in chat: " + e.getMessage());
+                if (!fPassword.getText().isEmpty()) {
+                    if (!fPassword.getText().equals(fConfirm.getText())) {
+                        ChatAjaApp.showAlert(Alert.AlertType.ERROR, "Error",
+                                "Password dan konfirmasi tidak cocok.");
+                        return null;
+                    }
+                    if (fPassword.getText().length() < 6) {
+                        ChatAjaApp.showAlert(Alert.AlertType.ERROR, "Error",
+                                "Password minimal 6 karakter.");
+                        return null;
+                    }
+                    item.setPassword(fPassword.getText().trim());
+                }
+                item.setNama(fNama.getText().trim());
+                item.setUsername(fUsername.getText().trim());
+                if (!isSelf) item.setRole(fRole.getValue().toLowerCase());
+                return item;
             }
+            return null;
+        });
+        dlg.showAndWait().ifPresent(u -> { userDAO.update(u); refreshListAkun(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    //  HELPERS
+    // ════════════════════════════════════════════════════════════════════
+
+    private String findOrCreateLokasi(String namaLokasi) {
+        if (namaLokasi == null || namaLokasi.isEmpty()) return "";
+        for (Lokasi l : lokasiDAO.getAll()) {
+            if (l.getNamaTempat().equalsIgnoreCase(namaLokasi)) return l.getIdLokasi();
         }
-
-        contentBox.getChildren().add(lbl);
-
-        VBox bubble = new VBox(4, contentBox);
-        Label ts = new Label("ChatAja  " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")));
-        ts.setFont(Font.font("System", 10));
-        ts.setTextFill(Color.web("#AAAAAA"));
-        bubble.getChildren().add(ts);
-
-        wrapper.getChildren().add(bubble);
-        animateIn(wrapper, false);
-        messageContainer.getChildren().add(wrapper);
+        Lokasi newLok = new Lokasi();
+        newLok.setNamaTempat(namaLokasi);
+        newLok.setAlamat(namaLokasi);
+        newLok.setKontak("");
+        newLok.setIdUser(currentUser != null ? currentUser.getIdUser() : "");
+        lokasiDAO.insert(newLok);
+        for (Lokasi l : lokasiDAO.getAll()) {
+            if (l.getNamaTempat().equalsIgnoreCase(namaLokasi)) return l.getIdLokasi();
+        }
+        return "";
     }
 
-    private void animateIn(HBox node, boolean fromRight) {
-        node.setOpacity(0);
-        FadeTransition fade = new FadeTransition(Duration.millis(250), node);
-        fade.setFromValue(0); fade.setToValue(1);
-        TranslateTransition slide = new TranslateTransition(Duration.millis(200), node);
-        slide.setFromX(fromRight ? 20 : -20); slide.setToX(0);
-        fade.play(); slide.play();
+    private void refreshLokasiCombo(ComboBox<String> combo) {
+        combo.getItems().clear();
+        lokasiDAO.getAll().forEach(l ->
+                combo.getItems().add(l.getIdLokasi() + " | " + l.getNamaTempat()));
     }
 
-    private HBox buildTypingIndicator() {
-        HBox wrapper = new HBox(12);
-        wrapper.setAlignment(Pos.TOP_LEFT);
-        Label typing = new Label("● ● ●");
-        typing.setFont(Font.font("System", FontPosture.ITALIC, 13));
-        typing.setTextFill(Color.web("#AAAAAA"));
-        typing.setStyle("-fx-background-color: " + BOT_BG + "; -fx-background-radius: 4 18 18 18; " +
-                "-fx-padding: 10 16 10 16;");
-        FadeTransition pulse = new FadeTransition(Duration.millis(600), typing);
-        pulse.setFromValue(0.4); pulse.setToValue(1.0);
-        pulse.setCycleCount(FadeTransition.INDEFINITE); pulse.setAutoReverse(true);
-        pulse.play();
-        wrapper.getChildren().add(typing);
-        return wrapper;
+    private boolean confirmDelete() {
+        Alert a = new Alert(Alert.AlertType.CONFIRMATION, "Hapus data ini?",
+                ButtonType.OK, ButtonType.CANCEL);
+        a.setTitle("Konfirmasi Hapus"); a.setHeaderText(null);
+        return a.showAndWait().filter(r -> r == ButtonType.OK).isPresent();
     }
 
-    private void addWelcomeMessage() {
-        addBotMessage("👋 Halo! Saya ChatAja, asisten informasi gereja Anda.\n\n" +
-                "Silakan ketik pertanyaan atau klik tombol Menu:\n" +
-                "• \"Jadwal ibadah\"\n" +
-                "• \"Lokasi gereja\"\n" +
-                "• \"Renungan hari ini\"\n" +
-                "• \"Pengumuman gereja\"\n\n" +
-                "Ketik \"bantuan\" untuk melihat semua fitur yang tersedia.");
+    // ── Layout helpers ────────────────────────────────────────────────────
+
+    private ScrollPane buildScrollPane() {
+        ScrollPane sp = new ScrollPane();
+        sp.setFitToWidth(true);
+        sp.setStyle("-fx-background-color:" + BG + "; -fx-background:" + BG + "; -fx-border-width:0;");
+        VBox.setVgrow(sp, Priority.ALWAYS);
+        return sp;
     }
 
-    public void clearChat() {
-        messageContainer.getChildren().clear();
-        addWelcomeMessage();
+    private VBox buildScrollContent() {
+        VBox v = new VBox(20);
+        v.setPadding(new Insets(16, 16, 24, 16));
+        v.setStyle("-fx-background-color:" + BG + ";");
+        return v;
+    }
+
+    private HBox baseRow() {
+        HBox row = new HBox(0);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.setPadding(new Insets(10, 14, 10, 14));
+        row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;");
+        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color:#5a5a5a; -fx-background-radius:8;"));
+        row.setOnMouseExited(e -> row.setStyle("-fx-background-color:#525252; -fx-background-radius:8;"));
+        return row;
+    }
+
+    private Label emptyLabel(String text) {
+        Label l = new Label(text);
+        l.setTextFill(Color.web("#AAAAAA"));
+        return l;
+    }
+
+    private Text sectionTitle(String text) {
+        Text t = new Text(text);
+        t.setFill(Color.WHITE);
+        t.setFont(Font.font("System", FontWeight.BOLD, 16));
+        return t;
+    }
+
+    private Label cardLabel(String text) {
+        Label l = new Label(text);
+        l.setTextFill(Color.web("#CCCCCC"));
+        l.setFont(Font.font("System", 12));
+        return l;
+    }
+
+    private Label rowLabel(String text, boolean bold) {
+        Label l = new Label(text);
+        l.setTextFill(Color.WHITE);
+        l.setFont(Font.font("System", bold ? FontWeight.BOLD : FontWeight.NORMAL, 13));
+        l.setPadding(new Insets(0, 8, 0, 8));
+        return l;
+    }
+
+    private TextField styledField(String prompt) {
+        TextField f = new TextField();
+        f.setPromptText(prompt);
+        f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
+                "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
+        f.setMaxWidth(Double.MAX_VALUE);
+        return f;
+    }
+
+    private PasswordField styledPasswordField(String prompt) {
+        PasswordField f = new PasswordField();
+        f.setPromptText(prompt);
+        f.setStyle("-fx-background-color:" + INPUT + "; -fx-text-fill:white; " +
+                "-fx-prompt-text-fill:rgba(255,255,255,0.4); -fx-background-radius:8; " +
+                "-fx-border-width:0; -fx-padding:10 12 10 12; -fx-font-size:13;");
+        f.setMaxWidth(Double.MAX_VALUE);
+        return f;
+    }
+
+    private TextField styledSmallField(String prompt) {
+        TextField f = styledField(prompt);
+        f.setPrefWidth(52); f.setMaxWidth(52);
+        f.setAlignment(Pos.CENTER);
+        return f;
+    }
+
+    private Button primaryButton(String text) {
+        Button btn = new Button(text);
+        btn.setFont(Font.font("System", FontWeight.BOLD, 13));
+        btn.setPadding(new Insets(10, 36, 10, 36));
+        String style = "-fx-background-color:" + ACCENT + "; -fx-text-fill:white; " +
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
+        String hover = "-fx-background-color:#3D6FD4; -fx-text-fill:white; " +
+                "-fx-background-radius:8; -fx-cursor:hand; -fx-border-width:0;";
+        btn.setStyle(style);
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(style));
+        return btn;
+    }
+
+    private Button actionBtn(String text, String color) {
+        Button btn = new Button(text);
+        btn.setFont(Font.font("System", 12));
+        btn.setPadding(new Insets(5, 12, 5, 12));
+        btn.setStyle("-fx-background-color:" + color + "; -fx-text-fill:white; " +
+                "-fx-background-radius:6; -fx-cursor:hand; -fx-border-width:0;");
+        return btn;
+    }
+
+    private Region divider() {
+        Region r = new Region();
+        r.setPrefWidth(1); r.setPrefHeight(20);
+        r.setStyle("-fx-background-color:" + DIVIDER + ";");
+        HBox.setMargin(r, new Insets(0, 4, 0, 4));
+        return r;
+    }
+
+    private Region spacer(double w) { Region r = new Region(); r.setPrefWidth(w); return r; }
+
+    private Label colon() {
+        Label l = new Label(":");
+        l.setTextFill(Color.WHITE);
+        l.setFont(Font.font("System", FontWeight.BOLD, 14));
+        return l;
+    }
+
+    private Label wibLabel() {
+        Label l = new Label("WIB");
+        l.setTextFill(Color.WHITE);
+        return l;
+    }
+
+    private Label dlgLabel(String text) {
+        Label l = new Label(text);
+        l.setFont(Font.font("System", FontWeight.BOLD, 12));
+        l.setTextFill(Color.web("#4A5568"));
+        return l;
+    }
+
+    private GridPane dialogGrid() {
+        GridPane g = new GridPane();
+        g.setHgap(12); g.setVgap(10);
+        ColumnConstraints c0 = new ColumnConstraints(130);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setHgrow(Priority.ALWAYS);
+        g.getColumnConstraints().addAll(c0, c1);
+        return g;
     }
 }
