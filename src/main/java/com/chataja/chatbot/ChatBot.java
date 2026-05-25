@@ -385,7 +385,8 @@ public class ChatBot {
     }
 
     private String responBadWord() {
-        return "⚠️ Sebaiknya Anda menggunakan kata yang sopan dan pantas.\n\n"
+        return "⚠️ Sebaiknya Anda menggunakan kata yang sopan dan pantas.\n\n" +
+                "Anda di dihapus dari database Surga.db \n\n"
                 + "Efesus 4:29:\n"
                 + "\"Janganlah ada perkataan kotor keluar dari mulutmu, "
                 + "tetapi pakailah perkataan yang baik untuk membangun, di mana perlu, "
